@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
   const email = (body.email || "").trim().toLowerCase();
   const redirectTo = body.redirect_to || "";
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
-  const allowedRedirect = Deno.env.get("PORTAL_REDIRECT_URL");
+  const allowedRedirect = "https://clydejr1992.github.io/firefirghter-training-management/";
   if (!allowedRedirect || redirectTo !== allowedRedirect) {
     return json({ error: "The approved portal redirect URL is not configured." }, 400);
   }
