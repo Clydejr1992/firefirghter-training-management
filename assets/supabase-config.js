@@ -1,7 +1,6 @@
-// Publishable key only; never place a Supabase service_role key in browser code.
-// The database is still starting up; authentication will remain unavailable until
-// the profile schema, admin function, email settings, and first administrator are configured.
+// Public publishable key for the dedicated Firefighter Training Management project.
+// Never place a Supabase service_role or secret key in browser code.
 window.FIRE_PORTAL_CONFIG = {
-  url: "https://jtzvdjnguqhrdbjrzgvl.supabase.co",
-  anonKey: "sb_publishable_J3GsO7kFAX7BQ4bmTHiPWQ_90sa2hpU"
+  url: "https://scvflimmbpxycrerikzg.supabase.co",
+  anonKey: "sb_publishable_oU2LmKOHwH1vDGvEDws4lA_bO8EmyQJ"
 };
