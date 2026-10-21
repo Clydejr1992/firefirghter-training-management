@@ -2,21 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101c2c">
 <title>Fire Department Training Management</title>
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
 <header class="topbar">
-  <div><h1>Fire Department Training Management</h1><p>Training • Certifications • Attendance • Bulletins</p></div>
+  <div class="brand"><div class="brand-mark" aria-hidden="true">✚</div><div><h1>Fire Department Training Management</h1><p>Training • Certifications • Attendance • Bulletins</p></div></div>
   <div class="top-actions"><span id="roleLabel"></span><button id="logoutBtn" class="danger hidden">Log Out</button></div>
 </header>
 <main>
-<section id="loginView" class="card login">
-<h2>Sign In</h2><p class="muted">GitHub test version.</p>
-<label>Email<input id="email" type="email" placeholder="admin@test.com"></label>
-<label>Password<input id="password" type="password"></label>
-<button id="loginBtn" class="primary">Sign In</button><div id="loginMsg" class="message"></div>
-<details><summary>Test accounts</summary><p><b>Administrator:</b> admin@test.com / admin123</p><p><b>Member:</b> member@test.com / member123</p></details>
+<section id="loginView">
+<div class="login-wrap">
+  <div class="login-hero">
+    <div><span class="hero-tag">✦ Department Training Portal</span><h2>Ready for the call.<br>Prepared for anything.</h2><p>One place for firefighter training records, certifications, department updates, and continuing education.</p></div>
+    <div class="hero-foot">SECURE MEMBER ACCESS · TRAINING RECORDS · CERTIFICATIONS</div>
+  </div>
+  <div class="login-form">
+    <span class="eyebrow">Welcome back</span><h2>Sign in to your portal</h2><p class="muted">Use your department email and personal password.</p>
+    <div class="role-switch" aria-label="Choose sign-in type"><button type="button" class="active" id="memberMode">Firefighter</button><button type="button" id="adminMode">Administrator</button></div>
+    <label class="field">Email address<input id="email" type="email" placeholder="you@department.org" autocomplete="username" required></label>
+    <label class="field">Password<input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></label>
+    <button id="loginBtn" class="primary full" type="button">Sign In Securely</button>
+    <div id="loginMsg" aria-live="polite"></div>
+    <p class="setup-note">New firefighter? Your administrator will email you a one-time setup link. Forgot your password? Contact your department administrator to request a secure reset link.</p>
+  </div>
+</div>
 </section>
 
 <section id="adminView" class="hidden">
@@ -89,5 +100,7 @@
 </section>
 </main>
 <div id="modal" class="modal hidden"><div class="modalbox"><button id="close" class="x">×</button><div id="modalBody"></div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-config.js"></script>
 <script src="assets/app.js"></script>
 </body></html>
