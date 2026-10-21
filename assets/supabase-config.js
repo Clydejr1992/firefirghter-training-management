@@ -1,7 +1,7 @@
-// Add your department's dedicated Supabase project URL and publishable/anon key here.
-// Never place a service_role key in this file or any browser code.
-// Until configured, secure sign-in remains disabled.
+// Publishable key only; never place a Supabase service_role key in browser code.
+// The database is still starting up; authentication will remain unavailable until
+// the profile schema, admin function, email settings, and first administrator are configured.
 window.FIRE_PORTAL_CONFIG = {
-  url: "",
-  anonKey: ""
+  url: "https://jtzvdjnguqhrdbjrzgvl.supabase.co",
+  anonKey: "sb_publishable_J3GsO7kFAX7BQ4bmTHiPWQ_90sa2hpU"
 };
