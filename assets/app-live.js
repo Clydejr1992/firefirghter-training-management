@@ -26,7 +26,7 @@
   $("records").innerHTML=records.sort((a,b)=>b.training_date.localeCompare(a.training_date)).map(r=>'<article class="card record"><h3>'+esc(r.training_name)+'</h3><p>'+esc(members.find(m=>m.id===r.member_id)?.full_name||"Member")+' · '+esc(r.training_date)+' · '+Number(r.hours)+' hours</p><p>'+esc(r.location)+' · '+esc(r.instructor)+'</p></article>').join("")||"<p>No training records yet.</p>";
   $("events").innerHTML=events.map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.event_time)+' · '+esc(e.location)+' · '+e.hours+' hours</p><p>'+esc(e.description)+'</p></article>').join("")||"<p>No training events.</p>";
   $("reqs").innerHTML=reqs.map(r=>'<p><b>'+esc(r.name)+'</b> — '+esc(r.rule)+'</p>').join("")||"<p>No requirements.</p>";
-  $("bulletins").innerHTML=bulletins.sort((a,b)=>b.created_at.localeCompare(a.created_at)).map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"<p>No bulletins.</p>";
+  $("bulletinList").innerHTML=bulletins.sort((a,b)=>b.created_at.localeCompare(a.created_at)).map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"<p>No bulletins.</p>";
   $("adminUpcoming").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<p>'+esc(e.title)+' — '+esc(e.event_date)+' at '+esc(e.location)+'</p>').join("")||"No upcoming training.";
   $("adminAlerts").textContent=active.length+" active accounts · "+records.length+" training records";
   $("activity").innerHTML=audits.slice(-10).reverse().map(a=>'<p>'+esc(a.action)+' · '+esc(a.entity_type)+' · '+esc(a.created_at)+'</p>').join("")||"No activity yet.";
@@ -60,5 +60,5 @@
   $("printReport").onclick=()=>window.print();$("search").oninput=e=>document.querySelectorAll("#records .record").forEach(n=>n.classList.toggle("hidden",!n.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
   if(/type=recovery|type=invite|type=signup/i.test(location.hash)){const h=document.createElement("div");h.className="modal";h.innerHTML='<div class="modalbox"><h2>Set your password</h2><form id="pwForm"><label class="field">New password<input id="pw" type="password" minlength="12" required></label><button class="primary">Save Password</button><p id="pwMsg"></p></form></div>';document.body.append(h);$("pwForm").onsubmit=async e=>{e.preventDefault();const {error}=await db.auth.updateUser({password:$("pw").value});message("pwMsg",error?error.message:"Password updated.",error?"error":"success");if(!error)history.replaceState(null,"",location.pathname)}}
  }
- document.addEventListener("DOMContentLoaded",init);if(document.readyState!=="loading")init();
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
