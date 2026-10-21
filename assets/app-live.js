@@ -40,7 +40,7 @@
       const rows=[["Class Name",...names],...classes.map(cls=>[cls,...names.map(name=>records.some(r=>(members.find(m=>m.id===r.member_id)?.full_name||"Unnamed Member")===name&&String(r.training_name||"Unspecified Class").trim()===cls)?"X":"")])];
       const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
       const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
-      const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="firefighter-class-matrix.csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
+      const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";a.style.display="none";document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);
     }catch(err){alert("Unable to create class matrix: "+err.message)}
   };
   $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
