@@ -172,15 +172,16 @@
       hideAllDashboards();
     });
     installAdminAccountControls();
+    handleRecoveryLink();
   }
 
   // Expose only safe recovery handling for Supabase's emailed password-reset link.
   window.addEventListener("hashchange", handleRecoveryLink);
   function handleRecoveryLink() {
-    if (!window.location.hash.includes("type=recovery") || !supabaseClient) return;
+    if (!/(type=recovery|type=invite|type=signup)/i.test(window.location.hash) || !supabaseClient || $("newPasswordForm")) return;
     const host = document.createElement("div");
     host.className = "modal";
-    host.innerHTML = '<div class="modalbox"><h2>Choose a new password</h2><p class="muted">Create a password for your account. Use at least 12 characters.</p><form id="newPasswordForm"><label class="field">New password<input id="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><label class="field">Confirm password<input id="confirmPassword" type="password" minlength="12" autocomplete="new-password" required></label><button class="primary" type="submit">Save New Password</button><div id="newPasswordMsg" aria-live="polite"></div></form></div>';
+    host.innerHTML = '<div class="modalbox"><h2>Choose a new password</h2><p class="muted">Choose your personal password to activate your account or finish resetting access. Use at least 12 characters.</p><form id="newPasswordForm"><label class="field">New password<input id="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><label class="field">Confirm password<input id="confirmPassword" type="password" minlength="12" autocomplete="new-password" required></label><button class="primary" type="submit">Save New Password</button><div id="newPasswordMsg" aria-live="polite"></div></form></div>';
     document.body.appendChild(host);
     $("newPasswordForm").addEventListener("submit", async (event) => {
       event.preventDefault();
