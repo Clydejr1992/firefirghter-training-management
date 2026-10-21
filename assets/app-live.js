@@ -1,0 +1,63 @@
+(() => {
+ const cfg=window.FIRE_PORTAL_CONFIG||{}, $=id=>document.getElementById(id);
+ let db,user,profile,role;
+ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const show=(id,on)=>$(id)?.classList.toggle("hidden",!on);
+ const message=(id,text,kind="info")=>{const n=$(id);if(n){n.textContent=text;n.className="message "+kind;}};
+ const read=async(t,cols="*")=>{const {data,error}=await db.from(t).select(cols);if(error)throw error;return data||[]};
+ const add=async(t,row)=>{const {error}=await db.from(t).insert(row);if(error)throw error;};
+ async function openDashboard(u,selected){
+  const {data:p,error}=await db.from("firefighter_profiles").select("id,full_name,role,active").eq("id",u.id).maybeSingle();
+  if(error)throw error;if(!p||!p.active)throw Error("Account not active. Contact your administrator.");
+  if(selected&&p.role!==selected)throw Error("Choose the correct sign-in type.");
+  user=u;profile=p;role=p.role;$("roleLabel").textContent=role==="admin"?"Administrator":"Firefighter";
+  show("loginView",false);show("logoutBtn",true);show("adminView",role==="admin");show("memberView",role==="firefighter");
+  if(role==="admin")await adminLoad();else await memberLoad();
+ }
+ function options(id,rows,label){const el=$(id);if(el)el.innerHTML=rows.map(r=>'<option value="'+esc(r.id)+'">'+esc(label(r))+'</option>').join("")}
+ async function adminLoad(){
+  const [members,records,events,reqs,bulletins,messages,audits]=await Promise.all([read("firefighter_profiles"),read("training_records"),read("training_events"),read("training_requirements"),read("department_bulletins"),read("member_messages"),read("admin_audit_log")]);
+  const active=members.filter(m=>m.active),yr=records.filter(r=>r.training_date?.startsWith(String(new Date().getFullYear())));
+  $("sMembers").textContent=active.filter(m=>m.role==="firefighter").length;$("sHours").textContent=yr.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1);$("sRecords").textContent=records.length;
+  $("sDue").textContent=records.filter(r=>r.expiration_date&&new Date(r.expiration_date)<new Date(Date.now()+30*86400000)).length;$("sRequired").textContent=Math.max(0,reqs.length*active.filter(m=>m.role==="firefighter").length-records.filter(r=>r.satisfies_requirement).length);
+  const firefighters=active.filter(m=>m.role==="firefighter");options("cmember",firefighters,m=>m.full_name||m.id);options("msgMember",firefighters,m=>m.full_name||m.id);
+  $("memberCards").innerHTML=members.map(m=>'<article class="card"><h3>'+esc(m.full_name||"Unnamed")+'</h3><p>'+esc(m.role)+' · '+(m.active?"Active":"Inactive")+'</p><button data-member="'+m.id+'" data-active="'+(!m.active)+'">'+(m.active?"Deactivate":"Reactivate")+'</button></article>').join("")||"<p>No members yet.</p>";
+  $("records").innerHTML=records.sort((a,b)=>b.training_date.localeCompare(a.training_date)).map(r=>'<article class="card record"><h3>'+esc(r.training_name)+'</h3><p>'+esc(members.find(m=>m.id===r.member_id)?.full_name||"Member")+' · '+esc(r.training_date)+' · '+Number(r.hours)+' hours</p><p>'+esc(r.location)+' · '+esc(r.instructor)+'</p></article>').join("")||"<p>No training records yet.</p>";
+  $("events").innerHTML=events.map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.event_time)+' · '+esc(e.location)+' · '+e.hours+' hours</p><p>'+esc(e.description)+'</p></article>').join("")||"<p>No training events.</p>";
+  $("reqs").innerHTML=reqs.map(r=>'<p><b>'+esc(r.name)+'</b> — '+esc(r.rule)+'</p>').join("")||"<p>No requirements.</p>";
+  $("bulletins").innerHTML=bulletins.sort((a,b)=>b.created_at.localeCompare(a.created_at)).map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"<p>No bulletins.</p>";
+  $("adminUpcoming").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<p>'+esc(e.title)+' — '+esc(e.event_date)+' at '+esc(e.location)+'</p>').join("")||"No upcoming training.";
+  $("adminAlerts").textContent=active.length+" active accounts · "+records.length+" training records";
+  $("activity").innerHTML=audits.slice(-10).reverse().map(a=>'<p>'+esc(a.action)+' · '+esc(a.entity_type)+' · '+esc(a.created_at)+'</p>').join("")||"No activity yet.";
+  $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
+  $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
+ }
+ async function memberLoad(){
+  const [records,events,bulletins,messages,reqs]=await Promise.all([read("training_records"),read("training_events"),read("department_bulletins"),read("member_messages"),read("training_requirements")]);
+  const mine=records.filter(r=>r.member_id===user.id),year=mine.filter(r=>r.training_date?.startsWith(String(new Date().getFullYear())));
+  $("mw").textContent=profile.full_name||user.email;$("mhours").textContent=year.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1);$("mrecords").textContent=mine.length;$("mdue").textContent=mine.filter(r=>r.expiration_date&&new Date(r.expiration_date)<new Date(Date.now()+30*86400000)).length;$("mmissing").textContent=Math.max(0,reqs.length-mine.filter(r=>r.satisfies_requirement).length);
+  $("myRecords").innerHTML=mine.map(r=>'<article class="card"><h3>'+esc(r.training_name)+'</h3><p>'+esc(r.training_date)+' · '+r.hours+' hours</p><p>'+esc(r.location)+'</p></article>').join("")||"No training records yet.";
+  $("myHours").innerHTML=bulletins.filter(b=>b.kind!=="offer").map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"No bulletins.";
+  $("myEvents").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.location)+' · '+e.hours+' hours</p></article>').join("")||"No upcoming training.";
+  $("myMessages").innerHTML=messages.filter(m=>m.member_id===user.id).map(m=>'<article class="card"><h3>'+esc(m.subject)+'</h3><p>'+esc(m.body)+'</p></article>').join("")||"No messages.";
+ }
+ async function init(){
+  document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab)?.classList.add("active")}));
+  if(!cfg.url||!cfg.anonKey||!window.supabase?.createClient){$("loginBtn").disabled=true;message("loginMsg","Supabase is not configured.","error");return}
+  db=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const {data:{session}}=await db.auth.getSession();if(session?.user)try{await openDashboard(session.user)}catch(e){message("loginMsg",e.message,"error")}
+  $("loginBtn").addEventListener("click",async()=>{const selected=$("adminMode").classList.contains("active")?"admin":"firefighter";$("loginBtn").disabled=true;try{const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error)throw error;await openDashboard(data.user,selected)}catch(e){message("loginMsg",e.message,"error")}finally{$("loginBtn").disabled=false}});
+  $("memberMode").onclick=()=>{$("memberMode").classList.add("active");$("adminMode").classList.remove("active")};$("adminMode").onclick=()=>{$("adminMode").classList.add("active");$("memberMode").classList.remove("active")};
+  $("logoutBtn").onclick=async()=>{await db.auth.signOut();show("loginView",true);show("adminView",false);show("memberView",false);show("logoutBtn",false)};
+  $("certForm").onsubmit=async e=>{e.preventDefault();try{await add("training_records",{member_id:$("cmember").value,training_name:$("ctitle").value.trim(),training_date:$("cdate").value,location:$("clocation").value.trim(),instructor:$("cinstructor").value.trim(),hours:Number($("chours").value),class_number:$("cclass").value.trim(),expiration_date:$("cexp").value||null,satisfies_requirement:$("crequired").checked,created_by:user.id});e.target.reset();message("certMsg","Training record saved.","success");await adminLoad()}catch(x){message("certMsg",x.message,"error")}};
+  $("eventForm").onsubmit=async e=>{e.preventDefault();try{await add("training_events",{title:$("etitle").value,event_date:$("edate").value,event_time:$("etime").value,location:$("elocation").value,hours:Number($("ehours").value),instructor:$("einstructor").value,required:$("erequired").checked,description:$("edesc").value,created_by:user.id});e.target.reset();await adminLoad()}catch(x){alert(x.message)}};
+  $("reqForm").onsubmit=async e=>{e.preventDefault();try{await add("training_requirements",{name:$("rname").value,rule:$("rrule").value,created_by:user.id});e.target.reset();await adminLoad()}catch(x){alert(x.message)}};
+  $("hoursForm").onsubmit=async e=>{e.preventDefault();try{await add("department_bulletins",{kind:"hours",title:$("btitle").value,body:$("bbody").value,created_by:user.id});e.target.reset();await adminLoad()}catch(x){alert(x.message)}};
+  $("offerForm").onsubmit=async e=>{e.preventDefault();try{await add("department_bulletins",{kind:"offer",title:$("otitle").value,body:$("obody").value,event_date:$("odate").value,event_time:$("otime").value,location:$("olocation").value,hours:Number($("ohours").value),created_by:user.id});e.target.reset();await adminLoad()}catch(x){alert(x.message)}};
+  $("messageForm").onsubmit=async e=>{e.preventDefault();try{await add("member_messages",{member_id:$("msgMember").value,subject:$("msgSubject").value,body:$("msgBody").value,created_by:user.id});e.target.reset();await adminLoad()}catch(x){alert(x.message)}};
+  $("memberCards").onclick=async e=>{const b=e.target.closest("[data-member]");if(!b)return;try{const {error}=await db.from("firefighter_profiles").update({active:b.dataset.active==="true"}).eq("id",b.dataset.member);if(error)throw error;await adminLoad()}catch(x){alert(x.message)}};
+  $("printReport").onclick=()=>window.print();$("search").oninput=e=>document.querySelectorAll("#records .record").forEach(n=>n.classList.toggle("hidden",!n.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
+  if(/type=recovery|type=invite|type=signup/i.test(location.hash)){const h=document.createElement("div");h.className="modal";h.innerHTML='<div class="modalbox"><h2>Set your password</h2><form id="pwForm"><label class="field">New password<input id="pw" type="password" minlength="12" required></label><button class="primary">Save Password</button><p id="pwMsg"></p></form></div>';document.body.append(h);$("pwForm").onsubmit=async e=>{e.preventDefault();const {error}=await db.auth.updateUser({password:$("pw").value});message("pwMsg",error?error.message:"Password updated.",error?"error":"success");if(!error)history.replaceState(null,"",location.pathname)}}
+ }
+ document.addEventListener("DOMContentLoaded",init);if(document.readyState!=="loading")init();
+})();
