@@ -14,6 +14,7 @@
   let supabaseClient = null;
   let currentUser = null;
   let currentRole = null;
+  let requestedRole = "firefighter";
 
   const loginView = $("loginView");
   const adminView = $("adminView");
@@ -66,6 +67,7 @@
       await supabaseClient.auth.signOut();
       throw new Error("This account does not have a valid department role.");
     }
+    if (data.role !== requestedRole && requestedRole !== "any") throw new Error("This account does not match the selected sign-in type. Choose the correct sign-in tab.");
     currentUser = user;
     if ($("mw")) $("mw").textContent = data.full_name || user.email || "Firefighter";
     setRole(data.role);
@@ -149,6 +151,8 @@
     });
     const loginButton = $("loginBtn");
     if (loginButton) loginButton.disabled = false;
+    $("memberMode")?.addEventListener("click", () => { requestedRole = "firefighter"; $("memberMode").classList.add("active"); $("adminMode")?.classList.remove("active"); });
+    $("adminMode")?.addEventListener("click", () => { requestedRole = "admin"; $("adminMode").classList.add("active"); $("memberMode")?.classList.remove("active"); });
     loginButton?.addEventListener("click", async () => {
       const email = $("email")?.value.trim();
       const password = $("password")?.value;
