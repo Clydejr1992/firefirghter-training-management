@@ -37,7 +37,7 @@
       const classes=[...new Set(records.map(r=>String(r.training_name||"Unspecified Class").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
       if(!names.length){alert("There are no members to include in the class matrix.");return}
       if(!classes.length){alert("There are no saved certificates or training records to include yet.");return}
-      const rows=[["Member Name",...classes],...names.map(name=>[name,...classes.map(cls=>records.some(r=>(members.find(m=>m.id===r.member_id)?.full_name||"Unnamed Member")===name&&String(r.training_name||"Unspecified Class").trim()===cls)?"X":"")])];
+      const rows=[["Class Name",...names],...classes.map(cls=>[cls,...names.map(name=>records.some(r=>(members.find(m=>m.id===r.member_id)?.full_name||"Unnamed Member")===name&&String(r.training_name||"Unspecified Class").trim()===cls)?"X":"")])];
       const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
       const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
       const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="firefighter-class-matrix.csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);
