@@ -52,7 +52,7 @@
     if (loginButton) loginButton.disabled = true;
   }
 
-  async function loadProfile(user) {
+  async function loadProfile(user, enforceSelectedRole = false) {
     const { data, error } = await supabaseClient
       .from("firefighter_profiles")
       .select("full_name,role,active")
@@ -67,7 +67,7 @@
       await supabaseClient.auth.signOut();
       throw new Error("This account does not have a valid department role.");
     }
-    if (data.role !== requestedRole && requestedRole !== "any") throw new Error("This account does not match the selected sign-in type. Choose the correct sign-in tab.");
+    if (enforceSelectedRole && data.role !== requestedRole) throw new Error("This account does not match the selected sign-in type. Choose the correct sign-in tab.");
     currentUser = user;
     if ($("mw")) $("mw").textContent = data.full_name || user.email || "Firefighter";
     setRole(data.role);
@@ -162,7 +162,7 @@
       try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        await loadProfile(data.user);
+        await loadProfile(data.user, true);
       } catch (error) {
         setMessage(loginMsg, error.message || "Sign-in failed.", "error");
       } finally { loginButton.disabled = false; }
