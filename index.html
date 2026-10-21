@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fire Department Training Management</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div><h1>Fire Department Training Management</h1><p>Training • Certifications • Attendance • Bulletins</p></div>
+  <div class="top-actions"><span id="roleLabel"></span><button id="logoutBtn" class="danger hidden">Log Out</button></div>
+</header>
+<main>
+<section id="loginView" class="card login">
+<h2>Sign In</h2><p class="muted">GitHub test version.</p>
+<label>Email<input id="email" type="email" placeholder="admin@test.com"></label>
+<label>Password<input id="password" type="password"></label>
+<button id="loginBtn" class="primary">Sign In</button><div id="loginMsg" class="message"></div>
+<details><summary>Test accounts</summary><p><b>Administrator:</b> admin@test.com / admin123</p><p><b>Member:</b> member@test.com / member123</p></details>
+</section>
+
+<section id="adminView" class="hidden">
+<div class="stats">
+<div><b id="sMembers">0</b><span>Members</span></div><div><b id="sHours">0</b><span>Hours This Year</span></div>
+<div><b id="sRecords">0</b><span>Training Records</span></div><div><b id="sDue">0</b><span>Certifications Due</span></div>
+<div><b id="sRequired">0</b><span>Required Training Missing</span></div>
+</div>
+<nav class="tabs">
+<button class="tab active" data-tab="dash">Dashboard</button><button class="tab" data-tab="members">Members</button>
+<button class="tab" data-tab="scan">Scan Certificate</button><button class="tab" data-tab="training">Training</button>
+<button class="tab" data-tab="calendar">Calendar / Attendance</button><button class="tab" data-tab="requirements">Requirements</button>
+<button class="tab" data-tab="bulletins">Bulletins & Messages</button><button class="tab" data-tab="reports">Reports / Audit</button>
+</nav>
+<div id="dash" class="panel active">
+<div class="grid2"><div class="card"><h2>Administrator Dashboard</h2><div id="adminAlerts"></div></div><div class="card"><h2>Upcoming Training</h2><div id="adminUpcoming"></div></div></div>
+<div class="card"><h2>Recent Activity</h2><div id="activity"></div></div>
+</div>
+<div id="members" class="panel">
+<div class="panelhead"><h2>Members & Private Folders</h2><button class="primary" id="addMember">+ Add Member</button></div>
+<div id="memberCards" class="cards"></div>
+</div>
+<div id="scan" class="panel">
+<div class="grid2"><div class="card"><h2>Certificate Scanner</h2><p class="muted">Use the camera on HTTPS/GitHub Pages or choose an image. The original scan stays in the administrator-only member folder.</p>
+<video id="video" autoplay playsinline></video><canvas id="canvas" class="hidden"></canvas>
+<div class="row"><button id="startCam">Start Camera</button><button id="capture" class="primary" disabled>Capture</button></div>
+<label>Or upload certificate<input id="file" type="file" accept="image/*"></label><img id="preview" class="preview hidden"></div>
+<form id="certForm" class="card"><h2>Certificate Details</h2>
+<label>Member<select id="cmember" required></select></label><label>Training Name<input id="ctitle" required></label>
+<label>Training Date<input id="cdate" type="date" required></label><label>Location<input id="clocation" required></label>
+<label>Instructor<input id="cinstructor"></label><label>Contact Hours<input id="chours" type="number" min="0" step=".25" required></label>
+<label>Class Number<input id="cclass"></label><label>Expiration Date <span class="muted">(optional)</span><input id="cexp" type="date"></label>
+<label><input id="crequired" type="checkbox"> This satisfies a required training</label>
+<button class="primary">Save Certificate</button><div id="certMsg" class="message"></div></form></div>
+</div>
+<div id="training" class="panel"><div class="panelhead"><h2>All Training Records</h2><input id="search" placeholder="Search member, training, location"></div><div id="records"></div></div>
+<div id="calendar" class="panel">
+<div class="grid2"><form id="eventForm" class="card"><h2>Post Training</h2>
+<label>Training Name<input id="etitle" required></label><label>Date<input id="edate" type="date" required></label><label>Time<input id="etime" placeholder="6:00 PM - 9:00 PM"></label>
+<label>Location<input id="elocation" required></label><label>Hours<input id="ehours" type="number" min="0" step=".25" required></label>
+<label>Instructor<input id="einstructor"></label><label><input id="erequired" type="checkbox"> Required training</label><label>Description<textarea id="edesc"></textarea></label>
+<button class="primary">Publish Training</button></form>
+<div class="card"><h2>Training Calendar</h2><div id="events"></div></div></div>
+</div>
+<div id="requirements" class="panel">
+<div class="grid2"><form id="reqForm" class="card"><h2>Create Training Requirement</h2><label>Requirement Name<input id="rname" required></label><label>Due/Expiration Rule<input id="rrule" placeholder="Annual / every 2 years / one-time"></label><button class="primary">Add Requirement</button></form>
+<div class="card"><h2>Requirements</h2><div id="reqs"></div></div></div>
+<div class="card"><h2>Member Requirement Status</h2><div id="reqStatus"></div></div>
+</div>
+<div id="bulletins" class="panel">
+<div class="grid2"><form id="hoursForm" class="card"><h2>Training Hours Bulletin</h2><label>Title<input id="btitle" required></label><label>Message<textarea id="bbody" required></textarea></label><button class="primary">Post Bulletin</button></form>
+<form id="offerForm" class="card"><h2>Training Offered Bulletin</h2><label>Title<input id="otitle" required></label><label>Date<input id="odate" type="date" required></label><label>Time<input id="otime"></label><label>Location<input id="olocation" required></label><label>Hours<input id="ohours" type="number" min="0" step=".25" required></label><label>Description<textarea id="obody"></textarea></label><button class="primary">Post Training Offer</button></form></div>
+<form id="messageForm" class="card"><h2>Individual Member Message</h2><div class="grid2"><label>Member<select id="msgMember"></select></label><label>Subject<input id="msgSubject" required></label></div><label>Message<textarea id="msgBody" required></textarea></label><button class="primary">Send Message</button></form>
+<div class="card"><h2>Published Items</h2><div id="bulletins"></div></div>
+</div>
+<div id="reports" class="panel">
+<div class="row"><button id="downloadCsv" class="primary">Download Training CSV</button><button id="printReport">Print Report</button></div>
+<div class="card"><h2>Certification / Training Report</h2><div id="report"></div></div>
+<div class="card"><h2>Administrator Audit Log</h2><div id="audit"></div></div>
+</div>
+</section>
+
+<section id="memberView" class="hidden">
+<div class="memberHeader card"><div><h2 id="mw"></h2><p>Your dashboard shows your training records and department information. Original certificate scans remain administrator-only.</p></div></div>
+<div class="stats memberStats"><div><b id="mhours">0</b><span>Hours This Year</span></div><div><b id="mrecords">0</b><span>Completed Trainings</span></div><div><b id="mdue">0</b><span>Certifications Due</span></div><div><b id="mmissing">0</b><span>Required Missing</span></div></div>
+<div id="memberNotices"></div>
+<div class="grid2"><div class="card"><h2>My Training History</h2><div id="myRecords"></div></div><div class="card"><h2>Training Hours Bulletins</h2><div id="myHours"></div></div></div>
+<div class="card"><h2>Upcoming / Offered Training</h2><div id="myEvents"></div></div>
+<div class="card"><h2>My Messages</h2><div id="myMessages"></div></div>
+</section>
+</main>
+<div id="modal" class="modal hidden"><div class="modalbox"><button id="close" class="x">×</button><div id="modalBody"></div></div></div>
+<script src="assets/app.js"></script>
+</body></html>
