@@ -18,7 +18,7 @@
 <main>
 <section id="loginView"><div class="login-wrap">
   <div class="login-hero"><div class="hero-orbit orbit-a"></div><div class="hero-orbit orbit-b"></div><div class="hero-content"><span class="hero-tag">✦ SECURE DEPARTMENT COMMAND CENTER</span><h2>Train hard.<br><strong>Stay ready.</strong></h2><p>One secure command center for firefighter training records, certifications, required training, attendance, department notices and operational readiness.</p><div class="hero-metrics"><div><b>01</b><span>Member Records</span></div><div><b>02</b><span>Training History</span></div><div><b>03</b><span>Readiness Reports</span></div></div></div><div class="hero-foot"><span>SECURE ACCESS</span><span>•</span><span>PRIVATE RECORDS</span><span>•</span><span>DEPARTMENT READY</span></div></div>
-  <div class="login-form glass-card"><div class="form-top"><span class="eyebrow">WELCOME BACK</span><span class="secure-dot">● SECURE</span></div><h2>Sign in to command</h2><p class="muted">Use your department email and password to continue.</p><div class="role-switch" aria-label="Choose sign-in type"><button type="button" class="active" id="memberMode">Firefighter</button><button type="button" id="adminMode">Administrator</button></div><label class="field"><span>Email address</span><input id="email" type="email" placeholder="you@department.org" autocomplete="username" required></label><label class="field"><span>Password</span><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></label><button id="loginBtn" class="primary full login-button" type="button"><span>Sign In Securely</span><span>→</span></button><div id="loginMsg" aria-live="polite"></div><div class="login-note"><strong>Need access?</strong><br>Contact your department administrator for an account or secure password reset.</div></div>
+  <div class="login-form glass-card"><div class="form-top"><span class="eyebrow">WELCOME BACK</span><span class="secure-dot">● SECURE</span></div><h2>Sign in to command</h2><p class="muted">Use your department email and password to continue.</p><div class="role-switch" aria-label="Choose sign-in type"><button type="button" class="active" id="memberMode">Firefighter</button><button type="button" id="adminMode">Administrator</button></div><label class="field"><span>Email address</span><input id="email" type="email" placeholder="you@department.org" autocomplete="username" required></label><label class="field"><span>Password</span><input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" required></label><button id="loginBtn" class="primary full login-button" type="button"><span>Sign In Securely</span><span>→</span></button><button id="forgotPasswordBtn" class="full" type="button">Forgot password? Send me a secure reset link</button><div id="loginMsg" aria-live="polite"></div><div class="login-note"><strong>Need access?</strong><br>Contact your department administrator for an account or secure password reset.</div></div>
 </div></section>
 
 <section id="adminView" class="hidden"><div class="command-heading"><div><span class="eyebrow">ADMINISTRATOR COMMAND</span><h2>Department readiness center</h2><p>Everything your department needs to manage training and keep members current.</p></div><div class="live-status"><span></span> SYSTEM READY</div></div>
@@ -38,5 +38,24 @@
 </main>
 <footer class="site-footer"><span>FIREFIGHTER TRAINING COMMAND</span><span>Secure department readiness management</span></footer>
 <div id="modal" class="modal hidden"><div class="modalbox"><button id="close" class="x" type="button">×</button><div id="modalBody"></div></div></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/supabase-config.js"></script><script src="assets/app-live.js?v=command-center-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="assets/supabase-config.js"></script><script src="assets/app-live.js?v=command-center-2"></script>
+<script>
+window.addEventListener('DOMContentLoaded',()=>{
+  const btn=document.getElementById('forgotPasswordBtn');
+  if(!btn)return;
+  btn.addEventListener('click',async()=>{
+    const email=document.getElementById('email')?.value.trim().toLowerCase();
+    const msg=document.getElementById('loginMsg');
+    if(!email){ if(msg){msg.textContent='Enter your administrator email address first, then click Forgot password.';msg.className='message error';} return; }
+    btn.disabled=true;
+    try{
+      const client=window.supabase.createClient(window.FIRE_PORTAL_CONFIG.url,window.FIRE_PORTAL_CONFIG.anonKey,{auth:{persistSession:false}});
+      const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:'https://clydejr1992.github.io/firefirghter-training-management/'});
+      if(error)throw error;
+      if(msg){msg.textContent='Password reset email sent. Check your email and use the secure link to create a new password.';msg.className='message success';}
+    }catch(err){if(msg){msg.textContent=err.message||'Unable to send the password reset email.';msg.className='message error';}}
+    finally{btn.disabled=false;}
+  });
+});
+</script>
 </body></html>
