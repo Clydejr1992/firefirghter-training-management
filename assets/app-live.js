@@ -10,7 +10,7 @@
  async function openDashboard(u,selected){
   const {data:p,error}=await db.from("firefighter_profiles").select("id,full_name,role,active").eq("id",u.id).maybeSingle();
   if(error)throw error;if(!p||!p.active)throw Error("Account not active. Contact your administrator.");
-  if((selected||selectedRole)&&p.role!==(selected||selectedRole))throw Error("Choose the correct sign-in type.");
+  if(selected&&p.role!==selected)throw Error("Choose the correct sign-in type.");
   user=u;profile=p;role=p.role;$("roleLabel").textContent=role==="admin"?"Administrator":"Firefighter";
   show("loginView",false);show("logoutBtn",true);show("adminView",role==="admin");show("memberView",role==="firefighter");
   if(role==="admin")await adminLoad();else await memberLoad();
