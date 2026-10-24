@@ -76,7 +76,38 @@
   let cameraStream=null;
   const stopCamera=()=>{if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}const v=$("video");if(v){v.pause();v.srcObject=null;}if($("capture"))$("capture").disabled=true;if($("startCam"))$("startCam").textContent="Start Camera";};
   const showPreview=(blobOrUrl)=>{const img=$("preview");if(!img)return;if(img.dataset.objectUrl)URL.revokeObjectURL(img.dataset.objectUrl);certImage=blobOrUrl instanceof Blob?blobOrUrl:null;if(blobOrUrl instanceof Blob){const url=URL.createObjectURL(blobOrUrl);img.dataset.objectUrl=url;img.src=url;}else img.src=blobOrUrl;img.classList.remove("hidden");};
-  $("startCam").onclick=async()=>{if(cameraStream){stopCamera();return;}if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){message("certMsg","Camera access is unavailable in this browser. Open the site over HTTPS in a current browser, or upload a certificate image instead.","error");return;}const b=$("startCam");b.disabled=true;message("certMsg","Requesting camera permission…");try{cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});const v=$("video");v.srcObject=cameraStream;v.muted=true;v.setAttribute("playsinline","");await v.play();$("capture").disabled=false;b.textContent="Stop Camera";message("certMsg","Camera ready. Position the certificate and select Capture.","success");}catch(err){stopCamera();let reason=err?.name==="NotAllowedError"?"Camera permission was denied. Allow camera access for this website in your browser settings, then try again.":err?.name==="NotFoundError"?"No camera was found on this device. Upload a certificate image instead.":err?.name==="NotReadableError"?"The camera may be in use by another app. Close other camera apps and try again.":"Unable to start the camera: "+(err?.message||"unknown error")+". You can upload a certificate image instead.";message("certMsg",reason,"error");}finally{b.disabled=false;}};
+  $("startCam").onclick=async()=>{
+    if(cameraStream){stopCamera();message("certMsg","Camera stopped.","info");return;}
+    const b=$("startCam");
+    if(!window.isSecureContext){message("certMsg","Camera access requires a secure HTTPS page. Open the site using its https:// address (not http://), or upload the certificate image instead.","error");return;}
+    if(!navigator.mediaDevices||typeof navigator.mediaDevices.getUserMedia!=="function"){message("certMsg","This browser does not provide camera access on this page. Open the site in Safari/Chrome using HTTPS, allow camera access, or upload a certificate image.","error");return;}
+    b.disabled=true;b.textContent="Starting camera…";message("certMsg","Requesting camera permission…");
+    try{
+      let stream;
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1600},height:{ideal:1200}});
+      }catch(firstError){
+        // Some desktop cameras and browsers reject the preferred rear-camera constraints.
+        stream=await navigator.mediaDevices.getUserMedia({audio:false,video:true});
+      }
+      cameraStream=stream;
+      const v=$("video");v.muted=true;v.autoplay=true;v.playsInline=true;v.setAttribute("playsinline","");
+      v.srcObject=stream;
+      await new Promise((resolve,reject)=>{
+        if(v.readyState>=2&&v.videoWidth){resolve();return;}
+        const timer=setTimeout(()=>reject(new Error("The camera opened but did not provide a picture. Check that another app is not using it, then try again.")),8000);
+        v.onloadedmetadata=()=>{clearTimeout(timer);resolve();};
+        v.onerror=()=>{clearTimeout(timer);reject(new Error("The camera feed could not be displayed by this browser."));};
+      });
+      await v.play();
+      $("capture").disabled=false;b.textContent="Stop Camera";
+      message("certMsg","Camera ready. Center the full certificate in the picture, then select Capture.","success");
+    }catch(err){
+      stopCamera();
+      const reason=err?.name==="NotAllowedError"||err?.name==="SecurityError"?"Camera permission is blocked. In your browser's site settings, allow Camera for this website, then reload the page.":err?.name==="NotFoundError"?"No camera was found on this device. Upload a certificate image instead.":err?.name==="NotReadableError"?"The camera is busy or blocked by another app. Close other camera apps and try again.":err?.name==="OverconstrainedError"?"The selected camera does not support the requested settings. Reload and try again.":(err?.message||"Unknown camera error");
+      message("certMsg","Unable to start camera: "+reason+" You can still upload a certificate image.","error");
+    }finally{b.disabled=false;if(!cameraStream)b.textContent="Start Camera";}
+  };
   $("capture").onclick=()=>{const v=$("video"),canvas=$("canvas");if(!cameraStream||!v||!canvas||!v.videoWidth){message("certMsg","Start the camera and wait for the live picture before capturing.","error");return;}canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext("2d");if(!ctx){message("certMsg","This browser cannot process the camera image. Upload an image instead.","error");return;}ctx.drawImage(v,0,0,canvas.width,canvas.height);canvas.toBlob(blob=>{if(!blob){message("certMsg","The camera image could not be captured. Try again or upload an image.","error");return;}showPreview(blob);stopCamera();message("certMsg","Certificate captured for preview. Complete the details and select Save Certificate to save the training record.","success");},"image/jpeg",0.92);};
   $("file").onchange=e=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith("image/")){message("certMsg","Choose an image file such as JPG or PNG.","error");e.target.value="";return;}if(file.size>15*1024*1024){message("certMsg","The image is larger than 15 MB. Choose a smaller image.","error");e.target.value="";return;}stopCamera();showPreview(file);message("certMsg","Image loaded for preview. Review it and complete the certificate details before saving the training record.","success");};
   $("readCertificate").onclick=async()=>{
