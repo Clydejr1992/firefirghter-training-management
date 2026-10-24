@@ -13,4 +13,9 @@ window.addEventListener("DOMContentLoaded", () => {
   script.src = "assets/training-files.js?v=training-files-1";
   script.defer = true;
   document.head.appendChild(script);
+  const managementScript = document.createElement("script");
+  managementScript.id = "trainingFileManagementScript";
+  managementScript.src = "assets/training-file-delete.js?v=training-file-management-2";
+  managementScript.defer = true;
+  document.head.appendChild(managementScript);
 });
