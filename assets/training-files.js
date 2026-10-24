@@ -271,7 +271,15 @@
     });
     observer.observe(adminView, { attributes: true, attributeFilter: ["class"] });
   }
+  // The script is injected dynamically by supabase-config.js after DOMContentLoaded.
+  // Run immediately when the administrator view is already open, and retain both
+  // the observer and DOMContentLoaded fallback for normal page-load timing.
+  if (adminView && !adminView.classList.contains("hidden")) {
+    setup().catch((err) => console.error("Training Files initialization failed:", err));
+  }
   window.addEventListener("DOMContentLoaded", () => {
-    if (!$("adminView")?.classList.contains("hidden")) setup().catch(() => {});
+    if (!$("adminView")?.classList.contains("hidden")) {
+      setup().catch((err) => console.error("Training Files initialization failed:", err));
+    }
   });
 })();
