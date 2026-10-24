@@ -14,18 +14,20 @@
 
   async function deleteFile(id, name, linked) {
     const warning = linked
-      ? `Delete the training file for ${name}?\n\nThis removes the file and its private certificate records. Training records already copied to the member's normal Training History will NOT be deleted.`
-      : `Delete the training file for ${name}?\n\nThis removes the file, all training records inside it, and any certificate images stored with it.`;
+      ? `Delete the training file for ${name}?\n\nThe file and its file records will be removed. Training records already copied to the member's normal Training History will NOT be deleted, and their certificate images will be preserved.`
+      : `Delete the training file for ${name}?\n\nThis removes the file, all training records inside it, and the certificate images stored with it.`;
     if (!confirm(warning)) return;
     const db = await adminClient();
     if (!db) { alert("Administrator access is required."); return; }
     try {
-      const {data:rows,error:readError} = await db.from("training_file_records").select("id,certificate_path").eq("training_file_id",id);
+      const {data:rows,error:readError} = await db.from("training_file_records").select("certificate_path").eq("training_file_id",id);
       if (readError) throw readError;
-      const paths = (rows || []).map(r => r.certificate_path).filter(Boolean);
-      if (paths.length) {
-        const {error:storageError} = await db.storage.from("firefighter-certificates").remove(paths);
-        if (storageError) throw storageError;
+      if (!linked) {
+        const paths = (rows || []).map(r => r.certificate_path).filter(Boolean);
+        if (paths.length) {
+          const {error:storageError} = await db.storage.from("firefighter-certificates").remove(paths);
+          if (storageError) throw storageError;
+        }
       }
       const {error:deleteError} = await db.from("training_files").delete().eq("id",id);
       if (deleteError) throw deleteError;
@@ -48,7 +50,7 @@
       <article class="card" style="margin-bottom:10px;padding:12px">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
           <div><strong>${esc(f.full_name)}</strong><p class="muted" style="margin:4px 0">${esc(f.status)}${f.member_id ? " · linked to member account" : " · no account yet"}</p></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-delete-training-file="${esc(f.id)}" data-delete-training-name="${esc(f.full_name)}" data-delete-training-linked="${f.member_id ? "1" : "0"} " class="danger">Delete File</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-delete-training-file="${esc(f.id)}" data-delete-training-name="${esc(f.full_name)}" data-delete-training-linked="${f.member_id ? "1" : "0"}" class="danger">Delete File</button></div>
         </div>
         ${f.notes ? `<p style="margin:8px 0 0">${esc(f.notes)}</p>` : ""}
       </article>`).join("") : '<p class="muted">No training files have been created yet.</p>';
