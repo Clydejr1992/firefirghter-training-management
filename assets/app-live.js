@@ -76,7 +76,39 @@
   let cameraStream=null;
   const stopCamera=()=>{if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;}const v=$("video");if(v){v.pause();v.srcObject=null;}if($("capture"))$("capture").disabled=true;if($("startCam"))$("startCam").textContent="Start Camera";};
   const showPreview=(blobOrUrl)=>{const img=$("preview");if(!img)return;if(img.dataset.objectUrl)URL.revokeObjectURL(img.dataset.objectUrl);certImage=blobOrUrl instanceof Blob?blobOrUrl:null;if(blobOrUrl instanceof Blob){const url=URL.createObjectURL(blobOrUrl);img.dataset.objectUrl=url;img.src=url;}else img.src=blobOrUrl;img.classList.remove("hidden");};
-  $("startCam").onclick=async()=>{if(cameraStream){stopCamera();return;}if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){message("certMsg","Camera access is unavailable in this browser. Open the site over HTTPS in a current browser, or upload a certificate image instead.","error");return;}const b=$("startCam");b.disabled=true;message("certMsg","Requesting camera permission…");try{cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});const v=$("video");v.srcObject=cameraStream;v.muted=true;v.setAttribute("playsinline","");await v.play();$("capture").disabled=false;b.textContent="Stop Camera";message("certMsg","Camera ready. Position the certificate and select Capture.","success");}catch(err){stopCamera();let reason=err?.name==="NotAllowedError"?"Camera permission was denied. Allow camera access for this website in your browser settings, then try again.":err?.name==="NotFoundError"?"No camera was found on this device. Upload a certificate image instead.":err?.name==="NotReadableError"?"The camera may be in use by another app. Close other camera apps and try again.":"Unable to start the camera: "+(err?.message||"unknown error")+". You can upload a certificate image instead.";message("certMsg",reason,"error");}finally{b.disabled=false;}};
+  $("startCam").onclick=async()=>{
+   if(cameraStream){stopCamera();return;}
+   const b=$("startCam");
+   if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    message("certMsg","Camera access requires HTTPS. Open the secure site https://clydejr1992.github.io/firefirghter-training-management/ or upload a certificate image. The whtraining.tech security certificate must be fixed for camera scanning to work there.","error");
+    return;
+   }
+   b.disabled=true;message("certMsg","Requesting camera permission…");
+   try{
+    try{
+     cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});
+    }catch(firstError){
+     // Some iPhones reject ideal camera constraints; retry with the simplest video request.
+     cameraStream=await navigator.mediaDevices.getUserMedia({audio:false,video:true});
+    }
+    const v=$("video");
+    if(!v)throw Error("The camera preview element is missing. Refresh the page and try again.");
+    v.srcObject=cameraStream;v.muted=true;v.autoplay=true;v.playsInline=true;v.setAttribute("playsinline","");
+    await new Promise((resolve,reject)=>{
+     if(v.readyState>=2&&v.videoWidth){resolve();return;}
+     const timer=setTimeout(()=>reject(Error("The camera opened but did not provide a picture. Try Stop Camera and Start Camera again.")),8000);
+     v.addEventListener("loadedmetadata",()=>{clearTimeout(timer);resolve();},{once:true});
+     v.addEventListener("error",()=>{clearTimeout(timer);reject(Error("The camera preview could not be loaded."));},{once:true});
+    });
+    await v.play();
+    $("capture").disabled=false;b.textContent="Stop Camera";
+    message("certMsg","Camera ready. Position the certificate and select Capture.","success");
+   }catch(err){
+    stopCamera();
+    let reason=err?.name==="NotAllowedError"?"Camera permission was denied. Allow camera access for this website in Safari settings, then try again.":err?.name==="NotFoundError"?"No camera was found on this device. Upload a certificate image instead.":err?.name==="NotReadableError"?"The camera may be in use by another app. Close other camera apps and try again.":(err?.message||"Unable to start the camera.")+" You can upload a certificate image instead.";
+    message("certMsg",reason,"error");
+   }finally{b.disabled=false;}
+  };
   $("capture").onclick=()=>{const v=$("video"),canvas=$("canvas");if(!cameraStream||!v||!canvas||!v.videoWidth){message("certMsg","Start the camera and wait for the live picture before capturing.","error");return;}canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext("2d");if(!ctx){message("certMsg","This browser cannot process the camera image. Upload an image instead.","error");return;}ctx.drawImage(v,0,0,canvas.width,canvas.height);canvas.toBlob(blob=>{if(!blob){message("certMsg","The camera image could not be captured. Try again or upload an image.","error");return;}showPreview(blob);stopCamera();message("certMsg","Certificate captured for preview. Complete the details and select Save Certificate to save the training record.","success");},"image/jpeg",0.92);};
   $("file").onchange=e=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith("image/")){message("certMsg","Choose an image file such as JPG or PNG.","error");e.target.value="";return;}if(file.size>15*1024*1024){message("certMsg","The image is larger than 15 MB. Choose a smaller image.","error");e.target.value="";return;}stopCamera();showPreview(file);message("certMsg","Image loaded for preview. Review it and complete the certificate details before saving the training record.","success");};
   $("readCertificate").onclick=async()=>{
@@ -84,7 +116,12 @@
    if(!window.Tesseract){message("ocrMsg","Text recognition library did not load. Refresh the page and try again.","error");return;}
    btn.disabled=true;btn.textContent="Reading certificate…";message("ocrMsg","Reading certificate text. This can take a little while on a phone…");
    try{
-    const result=await window.Tesseract.recognize(certImage,"eng");
+    const result=await window.Tesseract.recognize(certImage,"eng",{logger:progress=>{
+      if(progress&&Number.isFinite(progress.progress)){
+       const pct=Math.max(0,Math.min(100,Math.round(progress.progress*100)));
+       message("ocrMsg",(progress.status||"Reading certificate").replace(/-/g," ")+"… "+pct+"%");
+      }
+    }});
     const raw=String(result?.data?.text||"").replace(/\r/g,"\n"), lines=raw.split("\n").map(x=>x.trim()).filter(Boolean), text=lines.join("\n");
     if(text.replace(/\s/g,"").length<8)throw Error("Not enough readable text was found. Try a clearer, brighter image with the full certificate in frame.");
     const set=(id,value)=>{if(value&&$(id)&&!$(id).value)$(id).value=value;};
