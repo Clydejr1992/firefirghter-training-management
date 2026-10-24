@@ -121,13 +121,44 @@
     if (!data?.length) { list.innerHTML = '<p class="muted">No training files have been created yet.</p>'; return; }
     list.innerHTML = data.map(f => `
       <article class="card" style="margin-bottom:10px;padding:12px">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:start">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
           <div><strong>${esc(f.full_name)}</strong><p class="muted" style="margin:4px 0">${esc(f.status)}${f.member_id ? " · linked to member account" : " · no account yet"}</p></div>
-          <button type="button" data-open-training-file="${esc(f.id)}">Open File</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" data-open-training-file="${esc(f.id)}">Open File</button>
+            <button type="button" class="danger" data-delete-training-file="${esc(f.id)}" data-delete-training-name="${esc(f.full_name)}" data-delete-training-linked="${f.member_id ? "1" : "0"}">Delete File</button>
+          </div>
         </div>
         ${f.notes ? `<p style="margin:8px 0 0">${esc(f.notes)}</p>` : ""}
       </article>`).join("");
     list.querySelectorAll("[data-open-training-file]").forEach(btn => btn.addEventListener("click", () => openFile(btn.dataset.openTrainingFile)));
+    list.querySelectorAll("[data-delete-training-file]").forEach(btn => btn.addEventListener("click", () => deleteTrainingFile(btn.dataset.deleteTrainingFile, btn.dataset.deleteTrainingName, btn.dataset.deleteTrainingLinked === "1")));
+  }
+
+  async function deleteTrainingFile(id, name, linked) {
+    const warning = linked
+      ? `Delete the training file for ${name}? This removes the file and its private certificate images. Training records already copied to the member's normal Training History will remain.`
+      : `Delete the training file for ${name}? This permanently removes the file, all training records inside it, and certificate images stored with those records.`;
+    if (!confirm(warning)) return;
+    const buttons = document.querySelectorAll(`[data-delete-training-file="${CSS.escape(id)}"]`);
+    buttons.forEach(button => button.disabled = true);
+    try {
+      const { data: rows, error: readError } = await client.from("training_file_records")
+        .select("certificate_path").eq("training_file_id", id);
+      if (readError) throw readError;
+      const paths = (rows || []).map(row => row.certificate_path).filter(Boolean);
+      if (paths.length) {
+        const { error: storageError } = await client.storage.from("firefighter-certificates").remove(paths);
+        if (storageError) throw storageError;
+      }
+      const { error: deleteError } = await client.from("training_files").delete().eq("id", id);
+      if (deleteError) throw deleteError;
+      if (currentFileId === id) closeEditor();
+      msg("trainingFileCreateMsg", `Training file for ${name} deleted.`, "success");
+      await loadFiles();
+    } catch (err) {
+      alert(err.message || "Unable to delete the training file. No further changes were made.");
+      buttons.forEach(button => button.disabled = false);
+    }
   }
 
   async function createTrainingFile(e) {
