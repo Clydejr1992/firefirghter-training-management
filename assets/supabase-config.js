@@ -10,14 +10,15 @@ window.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("trainingFilesScript")) return;
   const script = document.createElement("script");
   script.id = "trainingFilesScript";
-  script.src = "assets/training-files.js?v=training-files-2";
+  script.src = "assets/training-files.js?v=training-files-3";
   script.defer = true;
   document.head.appendChild(script);
 });
 
-// Class Matrix: one firefighter per row, including training files created
-// before a member account existed. This is additive and does not change the
-// normal training report or certificate records.
+// Class Matrix: members go down the rows. Every certificate/training name
+// becomes a column. Put an X in a box when that member has that certificate,
+// whether the certificate was saved after the account was created or inside
+// a training file created before the member account existed.
 window.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", async (event) => {
     const button = event.target.closest?.("#downloadClassMatrix");
@@ -52,57 +53,75 @@ window.addEventListener("DOMContentLoaded", () => {
       const files = filesResult.data || [];
       const fileRecords = fileRecordsResult.data || [];
 
-      // Existing accounts are always included. A pre-account training file
-      // becomes its own row until it is linked to a member account.
+      // Keep every current firefighter row. A training file that has not yet
+      // been linked to an account is also retained as its own row.
       const people = new Map();
       members.forEach(member => {
-        people.set(`member:${member.id}`, { key: `member:${member.id}`, name: member.full_name || member.id });
+        people.set(`member:${member.id}`, {
+          key: `member:${member.id}`,
+          name: member.full_name || member.id
+        });
       });
+
       files.forEach(file => {
         const key = file.member_id ? `member:${file.member_id}` : `file:${file.id}`;
         if (!people.has(key)) {
-          people.set(key, { key, name: file.full_name || "Unnamed Training File" });
+          people.set(key, {
+            key,
+            name: file.full_name || "Unnamed Training File"
+          });
         }
       });
 
       const fileMap = new Map(files.map(file => [String(file.id), file]));
-      const completed = new Map();
-      const classes = new Set();
+      const certificatesByPerson = new Map();
+      const certificates = new Set();
 
-      const trainingName = row => String(
+      const certificateName = row => String(
         row?.training_name ?? row?.training ?? row?.class_name ?? ""
       ).trim();
 
-      const mark = (personKey, row) => {
+      const addCertificate = (personKey, record) => {
         if (!people.has(personKey)) return;
-        const name = trainingName(row);
-        if (!name) return;
-        classes.add(name);
-        if (!completed.has(personKey)) completed.set(personKey, new Set());
-        completed.get(personKey).add(name);
+        const certificate = certificateName(record);
+        if (!certificate) return;
+        certificates.add(certificate);
+        if (!certificatesByPerson.has(personKey)) certificatesByPerson.set(personKey, new Set());
+        certificatesByPerson.get(personKey).add(certificate);
       };
 
+      // Certificates saved directly to a member account.
       records.forEach(record => {
-        if (record.member_id) mark(`member:${record.member_id}`, record);
+        if (record.member_id) addCertificate(`member:${record.member_id}`, record);
       });
 
+      // Certificates saved in training files, including files made before
+      // the member account was created.
       fileRecords.forEach(record => {
         const file = fileMap.get(String(record.training_file_id));
         if (!file) return;
-        mark(file.member_id ? `member:${file.member_id}` : `file:${file.id}`, record);
+        const personKey = file.member_id ? `member:${file.member_id}` : `file:${file.id}`;
+        addCertificate(personKey, record);
       });
 
-      const classNames = [...classes].sort((a, b) => a.localeCompare(b));
+      const certificateNames = [...certificates].sort((a, b) => a.localeCompare(b));
       const personRows = [...people.values()].sort((a, b) => a.name.localeCompare(b.name));
 
       if (!personRows.length) throw new Error("There are no firefighter members or training files to include.");
-      if (!classNames.length) throw new Error("There are no training records to include yet.");
+      if (!certificateNames.length) throw new Error("There are no certificates/training records to include yet.");
 
+      // EXACT MATRIX FORMAT:
+      // Member | FF1 | FF2 | Hazmat | CPR | ...
+      // Clyde  |  X  |    |   X    | X  | ...
+      // John   |    |  X |   X    |    | ...
       const rows = [
-        ["Member", ...classNames],
+        ["Member", ...certificateNames],
         ...personRows.map(person => {
-          const done = completed.get(person.key) || new Set();
-          return [person.name, ...classNames.map(className => done.has(className) ? "X" : "")];
+          const owned = certificatesByPerson.get(person.key) || new Set();
+          return [
+            person.name,
+            ...certificateNames.map(certificate => owned.has(certificate) ? "X" : "")
+          ];
         })
       ];
 
