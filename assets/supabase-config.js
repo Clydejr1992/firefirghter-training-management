@@ -15,10 +15,11 @@ window.addEventListener("DOMContentLoaded", () => {
   document.head.appendChild(script);
 });
 
-// Class Matrix: members go down the rows. Every certificate/training name
-// becomes a column. Put an X in a box when that member has that certificate,
-// whether the certificate was saved after the account was created or inside
-// a training file created before the member account existed.
+// Class Matrix format:
+// Members go ACROSS the top row.
+// Training/certificates go DOWN the left side.
+// Put an X where the member has that training/certificate.
+// This also includes training files created before a member account existed.
 window.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", async (event) => {
     const button = event.target.closest?.("#downloadClassMatrix");
@@ -33,9 +34,11 @@ window.addEventListener("DOMContentLoaded", () => {
     button.textContent = "Building Matrix...";
 
     try {
-      const db = window.supabase.createClient(window.FIRE_PORTAL_CONFIG.url, window.FIRE_PORTAL_CONFIG.anonKey, {
-        auth: { persistSession: true, autoRefreshToken: true }
-      });
+      const db = window.supabase.createClient(
+        window.FIRE_PORTAL_CONFIG.url,
+        window.FIRE_PORTAL_CONFIG.anonKey,
+        { auth: { persistSession: true, autoRefreshToken: true } }
+      );
 
       const [membersResult, recordsResult, filesResult, fileRecordsResult] = await Promise.all([
         db.from("firefighter_profiles").select("id,full_name,role").eq("role", "firefighter"),
@@ -53,8 +56,8 @@ window.addEventListener("DOMContentLoaded", () => {
       const files = filesResult.data || [];
       const fileRecords = fileRecordsResult.data || [];
 
-      // Keep every current firefighter row. A training file that has not yet
-      // been linked to an account is also retained as its own row.
+      // Keep every current firefighter. Also keep an unlinked training file
+      // as a row until it is connected to a member account.
       const people = new Map();
       members.forEach(member => {
         people.set(`member:${member.id}`, {
@@ -86,41 +89,52 @@ window.addEventListener("DOMContentLoaded", () => {
         const certificate = certificateName(record);
         if (!certificate) return;
         certificates.add(certificate);
-        if (!certificatesByPerson.has(personKey)) certificatesByPerson.set(personKey, new Set());
+        if (!certificatesByPerson.has(personKey)) {
+          certificatesByPerson.set(personKey, new Set());
+        }
         certificatesByPerson.get(personKey).add(certificate);
       };
 
-      // Certificates saved directly to a member account.
       records.forEach(record => {
         if (record.member_id) addCertificate(`member:${record.member_id}`, record);
       });
 
-      // Certificates saved in training files, including files made before
-      // the member account was created.
       fileRecords.forEach(record => {
         const file = fileMap.get(String(record.training_file_id));
         if (!file) return;
-        const personKey = file.member_id ? `member:${file.member_id}` : `file:${file.id}`;
+        const personKey = file.member_id
+          ? `member:${file.member_id}`
+          : `file:${file.id}`;
         addCertificate(personKey, record);
       });
 
       const certificateNames = [...certificates].sort((a, b) => a.localeCompare(b));
       const personRows = [...people.values()].sort((a, b) => a.name.localeCompare(b.name));
 
-      if (!personRows.length) throw new Error("There are no firefighter members or training files to include.");
-      if (!certificateNames.length) throw new Error("There are no certificates/training records to include yet.");
+      if (!personRows.length) {
+        throw new Error("There are no firefighter members or training files to include.");
+      }
+      if (!certificateNames.length) {
+        throw new Error("There are no certificates/training records to include yet.");
+      }
 
-      // EXACT MATRIX FORMAT:
-      // Member | FF1 | FF2 | Hazmat | CPR | ...
-      // Clyde  |  X  |    |   X    | X  | ...
-      // John   |    |  X |   X    |    | ...
+      // FINAL MATRIX:
+      // Training / Certificate | Clyde | John | Mike
+      // FF1                    |   X   |  X   |
+      // FF2                    |   X   |      | X
+      // Hazmat                 |   X   |  X   | X
+      // CPR                    |   X   |      |
+      //
+      // Members are the columns. Training is the rows.
       const rows = [
-        ["Member", ...certificateNames],
-        ...personRows.map(person => {
-          const owned = certificatesByPerson.get(person.key) || new Set();
+        ["Training / Certificate", ...personRows.map(person => person.name)],
+        ...certificateNames.map(certificate => {
           return [
-            person.name,
-            ...certificateNames.map(certificate => owned.has(certificate) ? "X" : "")
+            certificate,
+            ...personRows.map(person => {
+              const owned = certificatesByPerson.get(person.key) || new Set();
+              return owned.has(certificate) ? "X" : "";
+            })
           ];
         })
       ];
