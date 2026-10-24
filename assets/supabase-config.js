@@ -10,7 +10,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("trainingFilesScript")) return;
   const script = document.createElement("script");
   script.id = "trainingFilesScript";
-  script.src = "assets/training-files.js?v=training-files-2";
+  script.src = "assets/training-files.js?v=training-files-1";
   script.defer = true;
   document.head.appendChild(script);
 });
