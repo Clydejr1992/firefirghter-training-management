@@ -184,4 +184,28 @@
   if(/type=recovery|type=invite|type=signup/i.test(location.hash)){const h=document.createElement("div");h.className="modal";h.innerHTML='<div class="modalbox"><h2>Set your password</h2><form id="pwForm"><label class="field">New password<input id="pw" type="password" minlength="12" required></label><button class="primary">Save Password</button><p id="pwMsg"></p></form></div>';document.body.append(h);$("pwForm").onsubmit=async e=>{e.preventDefault();const {error}=await db.auth.updateUser({password:$("pw").value});message("pwMsg",error?error.message:"Password updated.",error?"error":"success");if(!error)history.replaceState(null,"",location.pathname)}}
  }
  async function safeInit(){try{await init()}catch(e){console.error("Firefighter portal startup error:",e);const n=document.getElementById("loginMsg");if(n){n.textContent="The portal could not finish loading: "+(e?.message||"Unknown error")+". Please refresh and try again.";n.className="message error"}const b=document.getElementById("loginBtn");if(b)b.disabled=false}}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",safeInit,{once:true});else safeInit();
+
+  document.addEventListener("click",async event=>{
+    const edit=event.target.closest?.("[data-edit-cert]");
+    if(!edit)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    try{
+      const {data:r,error}=await db.from("training_records").select("*").eq("id",edit.getAttribute("data-edit-cert")).maybeSingle();
+      if(error)throw error;
+      if(!r)throw Error("Training record was not found. Refresh the page and try again.");
+      editingCertId=r.id;
+      const fields={cmember:r.member_id,ctitle:r.training_name,cdate:r.training_date,cexp:r.expiration_date,clocation:r.location,cinstructor:r.instructor,chours:r.hours,cclass:r.class_number};
+      for(const [id,value] of Object.entries(fields)){const field=$(id);if(field)field.value=value??"";}
+      if($("crequired"))$("crequired").checked=!!r.satisfies_requirement;
+      certImage=null;
+      const preview=$("preview");
+      if(preview){if(preview.dataset.objectUrl)URL.revokeObjectURL(preview.dataset.objectUrl);preview.removeAttribute("src");preview.classList.add("hidden");delete preview.dataset.objectUrl;}
+      const submit=$("certForm")?.querySelector('[type="submit"]');
+      if(submit)submit.textContent="Save Certificate Changes";
+      message("certMsg","Editing certificate: "+(r.training_name||"Training record"),"info");
+      const tab=document.querySelector('.tab[data-tab="scan"]');if(tab)tab.click();
+      $("scan")?.scrollIntoView({behavior:"smooth",block:"start"});
+    }catch(error){alert("Unable to open certificate for editing: "+(error?.message||error));}
+  },true);
 })();
