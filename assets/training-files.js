@@ -114,15 +114,36 @@
   async function loadFiles() {
     const list = $("trainingFileList");
     if (!list) return;
-    const { data, error } = await client.from("training_files")
-      .select("id,full_name,status,member_id,notes,created_at")
-      .order("created_at", { ascending: false });
-    if (error) { list.textContent = error.message; return; }
+
+    // Repair stale links left behind when an administrator deletes a member profile.
+    // A training file must not remain marked as linked when its member account no longer exists.
+    const [{ data: profiles, error: profilesError }, { data: initialFiles, error: filesError }] = await Promise.all([
+      client.from("firefighter_profiles").select("id"),
+      client.from("training_files").select("id,full_name,status,member_id,notes,created_at").order("created_at", { ascending: false })
+    ]);
+    if (profilesError) { list.textContent = profilesError.message; return; }
+    if (filesError) { list.textContent = filesError.message; return; }
+
+    const validProfileIds = new Set((profiles || []).map(p => String(p.id)));
+    const staleFiles = (initialFiles || []).filter(f => f.member_id && !validProfileIds.has(String(f.member_id)));
+    for (const file of staleFiles) {
+      const { error: repairError } = await client.from("training_files")
+        .update({ member_id: null, status: "unassigned", updated_at: new Date().toISOString() })
+        .eq("id", file.id);
+      if (repairError) {
+        list.textContent = "Could not clear a deleted member's training-file link: " + repairError.message;
+        return;
+      }
+    }
+
+    const data = staleFiles.length
+      ? (await client.from("training_files").select("id,full_name,status,member_id,notes,created_at").order("created_at", { ascending: false })).data
+      : initialFiles;
     if (!data?.length) { list.innerHTML = '<p class="muted">No training files have been created yet.</p>'; return; }
     list.innerHTML = data.map(f => `
       <article class="card" style="margin-bottom:10px;padding:12px">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
-          <div><strong>${esc(f.full_name)}</strong><p class="muted" style="margin:4px 0">${esc(f.status)}${f.member_id ? " · linked to member account" : " · no account yet"}</p></div>
+          <div><strong>${esc(f.full_name)}</strong><p class="muted" style="margin:4px 0">${esc(f.member_id ? f.status + " · linked to member account" : "Unassigned · no account linked")}</p></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button type="button" data-open-training-file="${esc(f.id)}">Open File</button>
             <button type="button" class="danger" data-delete-training-file="${esc(f.id)}" data-delete-training-name="${esc(f.full_name)}" data-delete-training-linked="${f.member_id ? "1" : "0"}">Delete File</button>
