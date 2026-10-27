@@ -65,7 +65,10 @@
    }
    let signedUrl=null,lastError=null;
    for(const candidate of candidates){
-    const result=await db.storage.from(bucket).createSignedUrl(candidate,600);
+    const result=await Promise.race([
+     db.storage.from(bucket).createSignedUrl(candidate,600),
+     new Promise((_,reject)=>setTimeout(()=>reject(new Error("Certificate storage request timed out. Check your connection and Supabase storage permissions.")),12000))
+    ]);
     if(!result.error&&result.data?.signedUrl){signedUrl=result.data.signedUrl;break}
     lastError=result.error;
    }
