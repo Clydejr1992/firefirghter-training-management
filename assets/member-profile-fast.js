@@ -19,9 +19,15 @@
     try{
       const c=client();
       if(!c)throw Error('Certificate service is not available. Please refresh and sign in again.');
-      const {data,error}=await c.storage.from('firefighter-certificates').createSignedUrl(path,600);
-      if(error)throw error;
-      if(!data?.signedUrl)throw Error('Could not create a certificate viewing link.');
+      const raw=String(path).trim();
+      const candidates=[raw,raw.replace(/^\\/+/,''),raw.replace(/^firefighter-certificates\\//,'' )];
+      let signedUrl=null,lastError=null;
+      for(const candidate of [...new Set(candidates)]){
+        const {data,error}=await c.storage.from('firefighter-certificates').createSignedUrl(candidate,600);
+        if(!error&&data?.signedUrl){signedUrl=data.signedUrl;break}
+        lastError=error;
+      }
+      if(!signedUrl)throw Error(lastError?.message||'Certificate image not found in storage. Check that the saved path matches the uploaded file.');
       if(print){
         if(!win)throw Error('Your browser blocked the print window. Allow pop-ups and try again.');
         win.document.open();
@@ -30,21 +36,20 @@
         const img=win.document.getElementById('certificate');
         img.onload=()=>{win.focus();win.print()};
         img.onerror=()=>{win.close();alert('The certificate image could not be loaded for printing.')};
-        img.src=data.signedUrl;
+        img.src=signedUrl;
       }else{
         const m=document.createElement('div');
         m.className='certOverlay';
         m.innerHTML='<div class="certPanel"><div class="certBar"><button type="button" data-close>Close</button><button type="button" data-print>Print Certificate</button></div><div class="certImgWrap"><img class="certImg" alt="Certificate"></div></div>';
         document.body.appendChild(m);
-        m.querySelector('img').src=data.signedUrl;
-        const close=()=>m.remove();
-        m.querySelector('[data-close]').onclick=close;
-        m.addEventListener('click',e=>{if(e.target===m)close()});
+        m.querySelector('img').src=signedUrl;
+        m.querySelector('[data-close]').onclick=()=>m.remove();
+        m.addEventListener('click',e=>{if(e.target===m)m.remove()});
         m.querySelector('[data-print]').onclick=()=>memberCertificate(path,true);
       }
-    }catch(e){if(win&&!win.closed)win.close();alert('Unable to '+(print?'print':'view')+' certificate: '+(e?.message||'Unknown error'))}
+    }catch(e){if(win&&!win.closed)win.close();alert('Unable to '+(print?'print':'open')+' certificate: '+(e?.message||'Unknown error'))}
   }
-  async function openProfile(card,button){const id=button?.getAttribute('data-member');if(!id)return;const name=card.querySelector('h3')?.textContent?.trim()||'Member Profile';const text=card.querySelector('p')?.textContent||'';const member={id,name,active:/\bActive\b/i.test(text)&&!/\bInactive\b/i.test(text),role:/admin/i.test(text)?'admin':'firefighter'};const modal=ensureModal(member);const list=$('fastProfileRecords');try{await getData();const direct=(recordsCache||[]).filter(r=>String(r.member_id)===String(id));const files=(filesCache||[]).filter(f=>String(f.member_id)===String(id));const fileIds=new Set(files.map(f=>String(f.id)));const fromFiles=(fileRecordsCache||[]).filter(r=>fileIds.has(String(r.training_file_id)));const rows=[...direct.map(r=>({...r,_source:'Training Record'})),...fromFiles.map(r=>({...r,_source:'Training File'}))].sort((a,b)=>String(b.training_date||'').localeCompare(String(a.training_date||'')));const total=rows.reduce((n,r)=>n+Number(r.hours||0),0);$('fastProfileCount').textContent=String(rows.length);$('fastProfileHours').textContent=total.toFixed(1);$('fastProfileCerts').textContent=String(rows.filter(r=>r.certificate_path).length);if(!rows.length){list.className='fast-profile-empty';list.textContent='No training records are attached to this member yet.';return}list.className='';list.innerHTML=rows.map(r=>`<article class="fast-profile-record"><h3>${esc(r.training_name||'Training')}</h3><p>${esc(r.training_date||'No date')} · ${Number(r.hours||0)} hours · ${esc(r._source)}</p><p>${esc(r.location||'No location')}${r.instructor?' · '+esc(r.instructor):''}</p>${r.certificate_path?'<div class="fast-cert-buttons"><button type="button" data-fast-cert="'+esc(r.certificate_path)+'">View Certificate</button><button type="button" data-fast-print="'+esc(r.certificate_path)+'">Print Certificate</button></div>':''}</article>`).join('');list.querySelectorAll('[data-fast-cert]').forEach(b=>b.onclick=()=>memberCertificate(b.dataset.fastCert,false));list.querySelectorAll('[data-fast-print]').forEach(b=>b.onclick=()=>memberCertificate(b.dataset.fastPrint,true))}catch(e){$('fastProfileCount').textContent='—';list.className='fast-profile-empty';list.textContent='The profile opened, but its training history could not be loaded. '+(e?.message||'')+'.'}}
+    async function openProfile(card,button){const id=button?.getAttribute('data-member');if(!id)return;const name=card.querySelector('h3')?.textContent?.trim()||'Member Profile';const text=card.querySelector('p')?.textContent||'';const member={id,name,active:/\bActive\b/i.test(text)&&!/\bInactive\b/i.test(text),role:/admin/i.test(text)?'admin':'firefighter'};const modal=ensureModal(member);const list=$('fastProfileRecords');try{await getData();const direct=(recordsCache||[]).filter(r=>String(r.member_id)===String(id));const files=(filesCache||[]).filter(f=>String(f.member_id)===String(id));const fileIds=new Set(files.map(f=>String(f.id)));const fromFiles=(fileRecordsCache||[]).filter(r=>fileIds.has(String(r.training_file_id)));const rows=[...direct.map(r=>({...r,_source:'Training Record'})),...fromFiles.map(r=>({...r,_source:'Training File'}))].sort((a,b)=>String(b.training_date||'').localeCompare(String(a.training_date||'')));const total=rows.reduce((n,r)=>n+Number(r.hours||0),0);$('fastProfileCount').textContent=String(rows.length);$('fastProfileHours').textContent=total.toFixed(1);$('fastProfileCerts').textContent=String(rows.filter(r=>r.certificate_path).length);if(!rows.length){list.className='fast-profile-empty';list.textContent='No training records are attached to this member yet.';return}list.className='';list.innerHTML=rows.map(r=>`<article class="fast-profile-record"><h3>${esc(r.training_name||'Training')}</h3><p>${esc(r.training_date||'No date')} · ${Number(r.hours||0)} hours · ${esc(r._source)}</p><p>${esc(r.location||'No location')}${r.instructor?' · '+esc(r.instructor):''}</p>${r.certificate_path?'<div class="fast-cert-buttons"><button type="button" data-fast-cert="'+esc(r.certificate_path)+'">View Certificate</button><button type="button" data-fast-print="'+esc(r.certificate_path)+'">Print Certificate</button></div>':''}</article>`).join('');list.querySelectorAll('[data-fast-cert]').forEach(b=>b.onclick=()=>memberCertificate(b.dataset.fastCert,false));list.querySelectorAll('[data-fast-print]').forEach(b=>b.onclick=()=>memberCertificate(b.dataset.fastPrint,true))}catch(e){$('fastProfileCount').textContent='—';list.className='fast-profile-empty';list.textContent='The profile opened, but its training history could not be loaded. '+(e?.message||'')+'.'}}
   function wire(){if(!cfg.url||!cfg.anonKey||!window.supabase?.createClient)return;document.addEventListener('click',e=>{const button=e.target.closest?.('#memberCards button[data-member]');if(!button)return;const card=button.closest('article.card');if(!card)return;e.preventDefault();e.stopPropagation();openProfile(card,button)},true);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire,{once:true});else wire();
 })();
