@@ -96,23 +96,21 @@
     const hasCert=!!r.certificate_path;
     return '<article class="card" data-record-id="'+esc(r.id)+'"><h3>'+esc(r.training_name)+'</h3><p>'+esc(r.training_date)+' · '+r.hours+' hours</p><p>'+esc(r.location)+'</p><div class="row" style="margin-top:10px"><button type="button" class="secondary" data-member-view-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>View Certificate</button><button type="button" class="primary" data-member-print-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>Print Certificate</button></div>'+(hasCert?'':'<p class="muted">Certificate not attached to this record yet.</p>')+'</article>';
   }).join("")||"No training records yet.";
-  // Defensive cleanup: keep exactly one View and one Print button for each training record.
+  // Enforce one certificate action of each type per training record across the entire history.
   const dedupeCertificateButtons=()=>{
-    document.querySelectorAll("#myRecords article[data-record-id]").forEach(card=>{
-      const seen=new Set();
-      card.querySelectorAll("button[data-member-view-cert],button[data-member-print-cert]").forEach(button=>{
-        const kind=button.hasAttribute("data-member-view-cert")?"view":"print";
-        if(seen.has(kind)){button.remove();return;}
-        seen.add(kind);
-      });
+    const seen=new Set();
+    document.querySelectorAll("#myRecords button[data-member-view-cert],#myRecords button[data-member-print-cert]").forEach(button=>{
+      const kind=button.hasAttribute("data-member-view-cert")?"view":"print";
+      const recordId=button.getAttribute(kind==="view"?"data-member-view-cert":"data-member-print-cert");
+      const key=kind+":"+recordId;
+      if(seen.has(key)){button.remove();return;}
+      seen.add(key);
     });
   };
   dedupeCertificateButtons();
-  if(!window.__memberCertDedupeObserver){
-    window.__memberCertDedupeObserver=new MutationObserver(()=>dedupeCertificateButtons());
-    const recordsNode=$("myRecords");
-    if(recordsNode)window.__memberCertDedupeObserver.observe(recordsNode,{childList:true,subtree:true});
-  }
+  if(window.__memberCertDedupeObserver)window.__memberCertDedupeObserver.disconnect();
+  window.__memberCertDedupeObserver=new MutationObserver(()=>dedupeCertificateButtons());
+  window.__memberCertDedupeObserver.observe(document.body,{childList:true,subtree:true});
   $("myHours").innerHTML=bulletins.filter(b=>b.kind!=="offer").map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"No bulletins.";
   $("myEvents").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.location)+' · '+e.hours+' hours</p></article>').join("")||"No upcoming training.";
   $("myMessages").innerHTML=messages.filter(m=>m.member_id===user.id).map(m=>'<article class="card"><h3>'+esc(m.subject)+'</h3><p>'+esc(m.body)+'</p></article>').join("")||"No messages.";
