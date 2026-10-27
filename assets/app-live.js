@@ -46,11 +46,37 @@
   };
   $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
  }
+ async function memberCertificateForMember(path,print=false){
+  if(!path){alert("No certificate image is attached to this training record.");return}
+  const win=print?window.open("about:blank","_blank"):null;
+  try{
+   const raw=String(path).trim();
+   const paths=[raw,raw.replace(/^\\/+/,''),raw.replace(/^firefighter-certificates\\//,'')];
+   let signedUrl=null,lastError=null;
+   for(const candidate of [...new Set(paths)]){const result=await db.storage.from("firefighter-certificates").createSignedUrl(candidate,600);if(!result.error&&result.data?.signedUrl){signedUrl=result.data.signedUrl;break}lastError=result.error}
+   if(!signedUrl)throw Error(lastError?.message||"Certificate image not found in storage.");
+   if(print){
+    if(!win)throw Error("Allow pop-ups to print the certificate.");
+    win.document.open();
+    win.document.write('<!doctype html><html><head><title>Print Certificate</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#fff}body{display:grid;place-items:center;min-height:100vh}img{max-width:100%;max-height:100vh;object-fit:contain}@media print{@page{margin:8mm}img{max-width:100%;max-height:96vh}}</style></head><body><img id="certificate" alt="Certificate"></body></html>');
+    win.document.close();
+    const img=win.document.getElementById("certificate");img.onload=()=>{win.focus();win.print()};img.onerror=()=>{win.close();alert("Certificate image could not load for printing.")};img.src=signedUrl;
+   }else{
+    const overlay=document.createElement("div");overlay.className="certOverlay";
+    overlay.innerHTML='<div class="certPanel"><div class="certBar"><button type="button" data-close>Close</button><button type="button" data-print>Print Certificate</button></div><div class="certImgWrap"><img class="certImg" alt="Certificate"></div></div>';
+    document.body.appendChild(overlay);overlay.querySelector("img").src=signedUrl;
+    overlay.querySelector("[data-close]").onclick=()=>overlay.remove();overlay.addEventListener("click",e=>{if(e.target===overlay)overlay.remove()});
+    overlay.querySelector("[data-print]").onclick=()=>memberCertificateForMember(path,true);
+   }
+  }catch(e){if(win&&!win.closed)win.close();alert("Unable to "+(print?"print":"open")+" certificate: "+(e?.message||"Unknown error"))}
+ }
  async function memberLoad(){
   const [records,events,bulletins,messages,reqs]=await Promise.all([read("training_records"),read("training_events"),read("department_bulletins"),read("member_messages"),read("training_requirements")]);
   const mine=records.filter(r=>r.member_id===user.id),year=mine.filter(r=>r.training_date?.startsWith(String(new Date().getFullYear())));
   $("mw").textContent=profile.full_name||user.email;$("mhours").textContent=year.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1);$("mrecords").textContent=mine.length;$("mdue").textContent=mine.filter(r=>r.expiration_date&&new Date(r.expiration_date)<new Date(Date.now()+30*86400000)).length;$("mmissing").textContent=Math.max(0,reqs.length-mine.filter(r=>r.satisfies_requirement).length);
-  $("myRecords").innerHTML=mine.map(r=>'<article class="card" data-record-id="'+esc(r.id)+'"><h3>'+esc(r.training_name)+'</h3><p>'+esc(r.training_date)+' · '+r.hours+' hours</p><p>'+esc(r.location)+'</p></article>').join("")||"No training records yet.";
+  $("myRecords").innerHTML=mine.map(r=>`<article class="card" data-record-id="${esc(r.id)}"><h3>${esc(r.training_name)}</h3><p>${esc(r.training_date)} · ${r.hours} hours</p><p>${esc(r.location)}</p>${r.certificate_path?`<div class="row" style="margin-top:10px"><button type="button" class="secondary" data-member-view-cert="${esc(r.id)}">View Certificate</button><button type="button" class="primary" data-member-print-cert="${esc(r.id)}">Print Certificate</button></div>`:"<p class=\"muted\">No certificate image attached.</p>"}</article>`).join("")||"No training records yet.";
+  $("myRecords").querySelectorAll("[data-member-view-cert]").forEach(b=>b.onclick=()=>{const r=mine.find(x=>String(x.id)===b.dataset.memberViewCert);memberCertificateForMember(r?.certificate_path,false)});
+  $("myRecords").querySelectorAll("[data-member-print-cert]").forEach(b=>b.onclick=()=>{const r=mine.find(x=>String(x.id)===b.dataset.memberPrintCert);memberCertificateForMember(r?.certificate_path,true)});
   $("myHours").innerHTML=bulletins.filter(b=>b.kind!=="offer").map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"No bulletins.";
   $("myEvents").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.location)+' · '+e.hours+' hours</p></article>').join("")||"No upcoming training.";
   $("myMessages").innerHTML=messages.filter(m=>m.member_id===user.id).map(m=>'<article class="card"><h3>'+esc(m.subject)+'</h3><p>'+esc(m.body)+'</p></article>').join("")||"No messages.";
