@@ -5,6 +5,17 @@ window.FIRE_PORTAL_CONFIG = {
   anonKey: "sb_publishable_oU2LmKOHwH1vDGvEDws4lA_bO8EmyQJ"
 };
 
+// Start the premium visual layer immediately so it can download in parallel
+// with the app instead of waiting for the first interaction.
+(() => {
+  if (document.getElementById("firePortalEliteStyles")) return;
+  const link = document.createElement("link");
+  link.id = "firePortalEliteStyles";
+  link.rel = "stylesheet";
+  link.href = "assets/elite.css?v=elite-1";
+  document.head.appendChild(link);
+})();
+
 // Additive feature loader: keeps the existing command-center app untouched.
 window.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("trainingFilesScript")) return;
