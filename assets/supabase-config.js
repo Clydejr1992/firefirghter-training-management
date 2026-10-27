@@ -13,6 +13,13 @@ window.addEventListener("DOMContentLoaded", () => {
   script.src = "assets/training-files.js?v=training-files-3";
   script.defer = true;
   document.head.appendChild(script);
+  if (!document.getElementById("certificateAccessScript")) {
+    const certificateScript = document.createElement("script");
+    certificateScript.id = "certificateAccessScript";
+    certificateScript.src = "assets/certificate-access.js?v=certificate-access-1";
+    certificateScript.defer = true;
+    document.head.appendChild(certificateScript);
+  }
 });
 
 // Remember the administrator's current tab and scroll position so a browser
