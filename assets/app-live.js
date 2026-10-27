@@ -93,26 +93,36 @@
     const hasCert=!!r.certificate_path;
     return '<article class="card" data-record-id="'+esc(r.id)+'"><h3>'+esc(r.training_name)+'</h3><p>'+esc(r.training_date)+' · '+r.hours+' hours</p><p>'+esc(r.location)+'</p><div class="row" style="margin-top:10px"><button type="button" class="secondary" data-member-view-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>View Certificate</button><button type="button" class="primary" data-member-print-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>Print Certificate</button></div>'+(hasCert?'':'<p class="muted">Certificate not attached to this record yet.</p>')+'</article>';
   }).join("")||"No training records yet.";
-  // Delegate certificate actions from the history container so handlers still work after re-rendering.
+  // Bind directly to the freshly rendered certificate buttons on every member history load.
   const historyBox=$("myRecords");
-  if(historyBox&&!historyBox.dataset.certificateActionsBound){
-   historyBox.dataset.certificateActionsBound="true";
-   historyBox.addEventListener("click",async e=>{
-    const button=e.target.closest("button[data-member-view-cert],button[data-member-print-cert]");
-    if(!button)return;
-    e.preventDefault();e.stopPropagation();
-    const isPrint=button.hasAttribute("data-member-print-cert");
-    const id=isPrint?button.dataset.memberPrintCert:button.dataset.memberViewCert;
-    const record=mine.find(item=>String(item.id)===String(id));
-    if(!record){alert("Training record not found. Refresh the page and try again.");return}
+  historyBox.querySelectorAll("button[data-member-view-cert]").forEach(button=>{
+   button.onclick=async function(event){
+    event.preventDefault();
+    event.stopPropagation();
+    const record=mine.find(item=>String(item.id)===String(button.dataset.memberViewCert));
+    if(!record){alert("Could not find this training record. Refresh and sign in again.");return}
     if(!record.certificate_path){alert("No certificate image is attached to this training record.");return}
     const oldLabel=button.textContent;
-    button.disabled=true;button.textContent=isPrint?"Preparing…":"Opening…";
-    try{await memberCertificateForMember(record.certificate_path,isPrint)}
-    catch(error){alert("Certificate action failed: "+(error?.message||String(error)))}
+    button.disabled=true;button.textContent="Opening certificate…";
+    try{await memberCertificateForMember(record.certificate_path,false)}
+    catch(error){alert("Unable to open certificate: "+(error?.message||String(error)))}
     finally{button.disabled=false;button.textContent=oldLabel}
-   },true);
-  }
+   };
+  });
+  historyBox.querySelectorAll("button[data-member-print-cert]").forEach(button=>{
+   button.onclick=async function(event){
+    event.preventDefault();
+    event.stopPropagation();
+    const record=mine.find(item=>String(item.id)===String(button.dataset.memberPrintCert));
+    if(!record){alert("Could not find this training record. Refresh and sign in again.");return}
+    if(!record.certificate_path){alert("No certificate image is attached to this training record.");return}
+    const oldLabel=button.textContent;
+    button.disabled=true;button.textContent="Preparing…";
+    try{await memberCertificateForMember(record.certificate_path,true)}
+    catch(error){alert("Unable to print certificate: "+(error?.message||String(error)))}
+    finally{button.disabled=false;button.textContent=oldLabel}
+   };
+  });
   $("myHours").innerHTML=bulletins.filter(b=>b.kind!=="offer").map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"No bulletins.";
   $("myEvents").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.location)+' · '+e.hours+' hours</p></article>').join("")||"No upcoming training.";
   $("myMessages").innerHTML=messages.filter(m=>m.member_id===user.id).map(m=>'<article class="card"><h3>'+esc(m.subject)+'</h3><p>'+esc(m.body)+'</p></article>').join("")||"No messages.";
