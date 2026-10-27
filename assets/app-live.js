@@ -99,9 +99,11 @@
   // Defensive cleanup: keep exactly one View and one Print button for each training record.
   const dedupeCertificateButtons=()=>{
     document.querySelectorAll("#myRecords article[data-record-id]").forEach(card=>{
-      ["data-member-view-cert","data-member-print-cert"].forEach(attr=>{
-        const buttons=card.querySelectorAll("button["+attr+"]");
-        buttons.forEach((button,index)=>{if(index>0)button.remove();});
+      const seen=new Set();
+      card.querySelectorAll("button[data-member-view-cert],button[data-member-print-cert]").forEach(button=>{
+        const kind=button.hasAttribute("data-member-view-cert")?"view":"print";
+        if(seen.has(kind)){button.remove();return;}
+        seen.add(kind);
       });
     });
   };
@@ -254,9 +256,7 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     const recordId=button.getAttribute(view?"data-member-view-cert":"data-member-print-cert");
-    const oldText=button.textContent;
     button.disabled=true;
-    button.textContent=print?"Preparing certificate…":"Opening certificate…";
     try{
       const {data:record,error}=await db.from("training_records").select("id,member_id,certificate_path,training_name").eq("id",recordId).maybeSingle();
       if(error)throw error;
@@ -268,7 +268,6 @@
       alert("Certificate action failed: "+(error?.message||String(error)));
     }finally{
       button.disabled=false;
-      button.textContent=oldText;
     }
   },true);
 
