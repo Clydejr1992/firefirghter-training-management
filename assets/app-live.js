@@ -51,7 +51,7 @@
   const win=print?window.open("about:blank","_blank"):null;
   try{
    const raw=String(path).trim();
-   const paths=[raw,raw.replace(/^\\/+/,''),raw.replace(/^firefighter-certificates\\//,'')];
+   const paths=[raw,raw.replace(/^\/+/,''),raw.replace(/^firefighter-certificates\//,'')];
    let signedUrl=null,lastError=null;
    for(const candidate of [...new Set(paths)]){const result=await db.storage.from("firefighter-certificates").createSignedUrl(candidate,600);if(!result.error&&result.data?.signedUrl){signedUrl=result.data.signedUrl;break}lastError=result.error}
    if(!signedUrl)throw Error(lastError?.message||"Certificate image not found in storage.");
