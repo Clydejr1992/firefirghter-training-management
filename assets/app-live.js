@@ -50,11 +50,26 @@
   if(!path){alert("No certificate image is attached to this training record.");return}
   const win=print?window.open("about:blank","_blank"):null;
   try{
+   const bucket="firefighter-certificates";
    const raw=String(path).trim();
-   const paths=[raw,raw.replace(/^\/+/,''),raw.replace(/^firefighter-certificates\//,'')];
+   const candidates=[];
+   const add=value=>{if(value){const v=String(value).trim().replace(/^\/+/, "");if(v&&!candidates.includes(v))candidates.push(v)}};
+   add(raw);
+   add(raw.split("?")[0]);
+   add(raw.replace(/^firefighter-certificates\//,""));
+   const marker="/storage/v1/object/";
+   if(raw.includes(marker)){
+    let tail=raw.slice(raw.indexOf(marker)+marker.length).replace(/^(sign|public|authenticated)\//,"");
+    if(tail.startsWith(bucket+"/"))tail=tail.slice(bucket.length+1);
+    add(tail);
+   }
    let signedUrl=null,lastError=null;
-   for(const candidate of [...new Set(paths)]){const result=await db.storage.from("firefighter-certificates").createSignedUrl(candidate,600);if(!result.error&&result.data?.signedUrl){signedUrl=result.data.signedUrl;break}lastError=result.error}
-   if(!signedUrl)throw Error(lastError?.message||"Certificate image not found in storage.");
+   for(const candidate of candidates){
+    const result=await db.storage.from(bucket).createSignedUrl(candidate,600);
+    if(!result.error&&result.data?.signedUrl){signedUrl=result.data.signedUrl;break}
+    lastError=result.error;
+   }
+   if(!signedUrl)throw Error("The saved certificate path does not match an image in the certificate storage. The image may have been moved or deleted."+(lastError?.message?" Details: "+lastError.message:""));
    if(print){
     if(!win)throw Error("Allow pop-ups to print the certificate.");
     win.document.open();
