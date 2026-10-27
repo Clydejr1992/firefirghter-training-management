@@ -16,7 +16,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (!document.getElementById("certificateAccessScript")) {
     const certificateScript = document.createElement("script");
     certificateScript.id = "certificateAccessScript";
-    certificateScript.src = "assets/certificate-access.js?v=certificate-access-1";
+    certificateScript.src = "assets/certificate-access.js?v=certificate-access-2";
     certificateScript.defer = true;
     document.head.appendChild(certificateScript);
   }
