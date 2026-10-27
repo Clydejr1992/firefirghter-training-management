@@ -1,168 +1,19 @@
-(() => {
-  const cfg = window.FIRE_PORTAL_CONFIG || {};
-  let client = null;
-  let busy = false;
-
-  const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s ?? "").replace(/[&<>\"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
-  }[c]));
-
-  function getClient() {
-    if (!client && cfg.url && cfg.anonKey && window.supabase?.createClient) {
-      client = window.supabase.createClient(cfg.url, cfg.anonKey, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-      });
-    }
-    return client;
-  }
-
-  async function getSession() {
-    const db = getClient();
-    if (!db) return null;
-    const { data: { session } } = await db.auth.getSession();
-    return session || null;
-  }
-
-  async function certificateUrl(path) {
-    if (!path) throw new Error("No certificate image is attached to this training record.");
-    const db = getClient();
-    if (!db) throw new Error("Secure certificate access is not available.");
-    const { data, error } = await db.storage
-      .from("firefighter-certificates")
-      .createSignedUrl(path, 600);
-    if (error) throw error;
-    if (!data?.signedUrl) throw new Error("The certificate image could not be opened.");
-    return data.signedUrl;
-  }
-
-  function addButton(container, label, className, handler) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = label;
-    if (className) button.className = className;
-    button.addEventListener("click", handler);
-    container.appendChild(button);
-  }
-
-  async function viewCertificate(path) {
-    try {
-      const url = await certificateUrl(path);
-      window.open(url, "_blank", "noopener");
-    } catch (error) {
-      alert("Unable to open the certificate: " + (error.message || "Unknown error."));
-    }
-  }
-
-  async function printCertificate(path, title) {
-    const printWindow = window.open("", "_blank", "noopener");
-    if (!printWindow) {
-      alert("Your browser blocked the print window. Please allow pop-ups for this site and try again.");
-      return;
-    }
-    printWindow.document.write("<!doctype html><html><head><title>" + esc(title || "Certificate") + "</title><style>html,body{margin:0;padding:0;background:#fff}body{display:flex;align-items:center;justify-content:center;min-height:100vh}img{display:block;max-width:100vw;max-height:100vh;width:auto;height:auto;object-fit:contain}@media print{body{min-height:0}img{max-width:100%;max-height:100%;page-break-inside:avoid}}</style></head><body><p>Loading certificate...</p></body></html>");
-    printWindow.document.close();
-    try {
-      const url = await certificateUrl(path);
-      printWindow.document.body.innerHTML = "<img id=\"certificateToPrint\" src=\"" + esc(url) + "\" alt=\"Certificate\">";
-      const image = printWindow.document.getElementById("certificateToPrint");
-      image.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-      };
-      image.onerror = () => {
-        printWindow.document.body.innerHTML = "<p>Unable to load the certificate image.</p>";
-      };
-    } catch (error) {
-      printWindow.document.body.innerHTML = "<p>Unable to open the certificate: " + esc(error.message || "Unknown error.") + "</p>";
-    }
-  }
-
-  function decorateCards(container, records) {
-    if (!container || !records?.length) return;
-    const cards = [...container.querySelectorAll(":scope > .card")];
-    if (!cards.length) return;
-    cards.forEach((card, index) => {
-      const record = records[index];
-      if (!record || !record.certificate_path || card.dataset.certificateAccessReady === "1") return;
-      card.dataset.certificateAccessReady = "1";
-      const row = document.createElement("div");
-      row.className = "row";
-      row.style.marginTop = "10px";
-      addButton(row, "View Certificate", "secondary", () => viewCertificate(record.certificate_path));
-      addButton(row, "Print Certificate", "primary", () => printCertificate(record.certificate_path, record.training_name));
-      card.appendChild(row);
-    });
-  }
-
-  async function enhanceMember() {
-    const container = $("myRecords");
-    if (!container || container.dataset.certificateLoading === "1") return;
-    const session = await getSession();
-    if (!session?.user) return;
-    container.dataset.certificateLoading = "1";
-    try {
-      const db = getClient();
-      const { data, error } = await db.from("training_records")
-        .select("id,training_name,training_date,location,hours,certificate_path")
-        .eq("member_id", session.user.id)
-        .order("training_date", { ascending: false });
-      if (error) throw error;
-      decorateCards(container, data || []);
-    } catch (error) {
-      console.error("Certificate access setup failed:", error);
-    } finally {
-      delete container.dataset.certificateLoading;
-    }
-  }
-
-  async function enhanceAdmin() {
-    const container = $("records");
-    if (!container || container.dataset.certificateLoading === "1") return;
-    const session = await getSession();
-    if (!session?.user) return;
-    container.dataset.certificateLoading = "1";
-    try {
-      const db = getClient();
-      const { data: profile, error: profileError } = await db.from("firefighter_profiles")
-        .select("id,role,active")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      if (profileError || profile?.role !== "admin" || !profile.active) return;
-      const { data, error } = await db.from("training_records")
-        .select("id,training_name,training_date,location,hours,certificate_path")
-        .order("training_date", { ascending: false });
-      if (error) throw error;
-      decorateCards(container, data || []);
-    } catch (error) {
-      console.error("Administrator certificate access setup failed:", error);
-    } finally {
-      delete container.dataset.certificateLoading;
-    }
-  }
-
-  async function refresh() {
-    if (busy) return;
-    busy = true;
-    try {
-      await enhanceMember();
-      await enhanceAdmin();
-    } finally {
-      busy = false;
-    }
-  }
-
-  function start() {
-    if (!getClient()) return;
-    const memberObserver = new MutationObserver(() => { void refresh(); });
-    const adminObserver = new MutationObserver(() => { void refresh(); });
-    if ($("myRecords")) memberObserver.observe($("myRecords"), { childList: true });
-    if ($("records")) adminObserver.observe($("records"), { childList: true });
-    getClient().auth.onAuthStateChange(() => setTimeout(() => { void refresh(); }, 0));
-    setInterval(() => { void refresh(); }, 1500);
-    void refresh();
-  }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
-  else start();
+(()=>{
+const cfg=window.FIRE_PORTAL_CONFIG||{};let db=null,busy=false,editId=null,editFileId=null,oldPath=null;
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+function client(){if(!db&&cfg.url&&cfg.anonKey&&window.supabase?.createClient)db=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});return db}
+async function session(){const c=client();if(!c)return null;return (await c.auth.getSession()).data.session||null}
+async function url(path){if(!path)throw Error('No certificate image is attached to this training record.');const{data,error}=await client().storage.from('firefighter-certificates').createSignedUrl(path,600);if(error)throw error;if(!data?.signedUrl)throw Error('The certificate image could not be opened.');return data.signedUrl}
+function styles(){if($('certificateAccessStyles'))return;let s=document.createElement('style');s.id='certificateAccessStyles';s.textContent=`.certOverlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px}.certPanel{background:#fff;width:min(1100px,96vw);height:min(92vh,900px);border-radius:14px;overflow:auto}.certBar{display:flex;justify-content:flex-end;gap:8px;padding:12px;background:#111827}.certImgWrap{height:calc(100% - 60px);display:flex;align-items:center;justify-content:center;overflow:auto;background:#ddd;padding:15px}.certImg{max-width:100%;max-height:100%;object-fit:contain}.certForm{padding:22px;color:#111;background:#fff}.certForm label{display:block;margin:10px 0;font-weight:600}.certForm input{width:100%;box-sizing:border-box;padding:9px;margin-top:4px}.certGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.certActions{display:flex;gap:8px;margin-top:15px;flex-wrap:wrap}@media(max-width:700px){.certGrid{grid-template-columns:1fr}}@media print{body.certPrinting>*:not(#certPrint){display:none!important}body.certPrinting{background:#fff!important;margin:0!important;padding:0!important}#certPrint{position:fixed!important;inset:0!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#fff!important}#certPrint img{max-width:100vw!important;max-height:100vh!important;width:auto!important;height:auto!important}@page{margin:0}}`;document.head.appendChild(s)}
+function closeOverlay(){document.querySelectorAll('.certOverlay,#certPrint').forEach(x=>x.remove());document.body.classList.remove('certPrinting')}
+async function view(path){try{const u=await url(path);styles();closeOverlay();let o=document.createElement('div');o.className='certOverlay';o.innerHTML='<div class="certPanel"><div class="certBar"><button type="button" data-close>Close</button><button type="button" class="primary" data-print>Print Certificate</button></div><div class="certImgWrap"><img class="certImg" alt="Certificate"></div></div>';document.body.appendChild(o);o.querySelector('img').src=u;o.querySelector('[data-close]').onclick=closeOverlay;o.querySelector('[data-print]').onclick=()=>printCert(path)}catch(e){alert('Unable to open the certificate: '+e.message)}}
+async function printCert(path){try{const u=await url(path);styles();closeOverlay();let p=document.createElement('div');p.id='certPrint';p.innerHTML='<img alt="Certificate">';document.body.appendChild(p);document.body.classList.add('certPrinting');let img=p.querySelector('img');let done=()=>{document.body.classList.remove('certPrinting');p.remove();window.removeEventListener('afterprint',done)};window.addEventListener('afterprint',done,{once:true});img.onload=()=>window.print();img.onerror=done;img.src=u}catch(e){alert('Unable to print the certificate: '+e.message)}}
+function add(parent,text,cls,fn){let b=document.createElement('button');b.type='button';b.textContent=text;if(cls)b.className=cls;b.onclick=fn;parent.appendChild(b)}
+async function enhanceRecords(id,filterId,admin){let t=$(id);if(!t||t.dataset.certLoading==='1')return;let s=await session();if(!s?.user)return;t.dataset.certLoading='1';try{let q=client().from('training_records').select('id,training_name,training_date,location,hours,certificate_path').order('training_date',{ascending:false});if(filterId)q=q.eq('member_id',s.user.id);let{data,error}=await q;if(error)throw error;if(admin){let{data:p,error:pe}=await client().from('firefighter_profiles').select('role,active').eq('id',s.user.id).maybeSingle();if(pe||p?.role!=='admin'||!p.active)return}let cards=[...t.querySelectorAll(':scope > .card')];(data||[]).forEach((r,i)=>{let c=cards[i];if(!c||!r.certificate_path||c.dataset.certReady==='1')return;c.dataset.certReady='1';let row=document.createElement('div');row.className='row';row.style.marginTop='10px';add(row,'View Certificate','secondary',()=>view(r.certificate_path));add(row,'Print Certificate','primary',()=>printCert(r.certificate_path));c.appendChild(row)})}catch(e){console.error('Certificate access:',e)}finally{delete t.dataset.certLoading}}
+async function editFileRecord(id){try{let{data:r,error}=await client().from('training_file_records').select('id,training_file_id,training_name,training_date,location,instructor,hours,expiration_date,class_number,satisfies_requirement,certificate_path').eq('id',id).single();if(error)throw error;editId=r.id;editFileId=r.training_file_id;oldPath=r.certificate_path||null;styles();closeOverlay();let o=document.createElement('div');o.className='certOverlay';o.innerHTML=`<div class="certPanel"><div class="certBar"><button type="button" data-close>Cancel</button></div><form class="certForm" id="certEditForm"><h2>Edit Training / Certificate</h2><label>Training Name<input id="certName" required></label><div class="certGrid"><label>Date<input id="certDate" type="date" required></label><label>Expiration<input id="certExp" type="date"></label></div><label>Location<input id="certLoc" required></label><label>Instructor<input id="certInst"></label><div class="certGrid"><label>Hours<input id="certHours" type="number" min="0" step=".25" required></label><label>Class Number<input id="certClass"></label></div><label><input id="certReq" type="checkbox"> This satisfies a required training</label><label>Replace Certificate Image<input id="certImage" type="file" accept="image/*"></label><p>Leave the image blank to keep the current certificate.</p><div class="certActions"><button class="primary" type="submit">Save Changes</button><button type="button" data-close>Cancel</button></div><p id="certMsg"></p></form></div>`;document.body.appendChild(o);$('certName').value=r.training_name||'';$('certDate').value=r.training_date||'';$('certExp').value=r.expiration_date||'';$('certLoc').value=r.location||'';$('certInst').value=r.instructor||'';$('certHours').value=r.hours??0;$('certClass').value=r.class_number||'';$('certReq').checked=!!r.satisfies_requirement;o.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeOverlay);$('certEditForm').onsubmit=saveEdit}catch(e){alert('Unable to edit this training record: '+e.message)}}
+async function saveEdit(e){e.preventDefault();let b=e.submitter;b.disabled=true;let path=null;try{let im=$('certImage').files[0];if(im){let ext=im.type==='image/png'?'png':im.type==='image/webp'?'webp':'jpg';let id=globalThis.crypto?.randomUUID?globalThis.crypto.randomUUID():'cert-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);path=`training-files/${editFileId}/${id}.${ext}`;let{error}=await client().storage.from('firefighter-certificates').upload(path,im,{contentType:im.type||'image/jpeg',upsert:false});if(error)throw error}let u={training_name:$('certName').value.trim(),training_date:$('certDate').value,location:$('certLoc').value.trim(),instructor:$('certInst').value.trim(),hours:Number($('certHours').value||0),class_number:$('certClass').value.trim(),expiration_date:$('certExp').value||null,satisfies_requirement:$('certReq').checked};if(path)u.certificate_path=path;let{error}=await client().from('training_file_records').update(u).eq('id',editId);if(error)throw error;if(path&&oldPath)await client().storage.from('firefighter-certificates').remove([oldPath]);closeOverlay();window.location.reload()}catch(e){if(path)await client().storage.from('firefighter-certificates').remove([path]);$('certMsg').textContent=e.message;b.disabled=false}}
+async function enhanceFileRecords(){let t=$('trainingFileRecords');if(!t)return;for(const d of [...t.querySelectorAll('[data-delete-training-file-record]')]){if(d.dataset.certControls==='1')continue;d.dataset.certControls='1';let id=d.dataset.deleteTrainingFileRecord,row=d.closest('article.card')||d.parentElement;try{let{data:r,error}=await client().from('training_file_records').select('id,certificate_path').eq('id',id).single();if(error)throw error;let c=document.createElement('div');c.className='row';c.style.marginTop='8px';if(r.certificate_path){add(c,'View Certificate','secondary',()=>view(r.certificate_path));add(c,'Print Certificate','primary',()=>printCert(r.certificate_path))}else{let n=document.createElement('span');n.className='muted';n.textContent='No certificate image attached';c.appendChild(n)}add(c,'Edit','secondary',()=>editFileRecord(id));row.appendChild(c)}catch(e){console.error('Training-file certificate controls:',e)}}}
+async function refresh(){if(busy)return;busy=true;try{await enhanceRecords('myRecords',true,false);await enhanceRecords('records',false,true);await enhanceFileRecords()}finally{busy=false}}
+function start(){if(!client())return;styles();let targets=[$('myRecords'),$('records'),$('trainingFileRecords')].filter(Boolean);targets.forEach(t=>new MutationObserver(()=>refresh()).observe(t,{childList:true,subtree:true}));client().auth.onAuthStateChange(()=>setTimeout(refresh,0));setInterval(refresh,1800);refresh()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
