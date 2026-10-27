@@ -124,3 +124,11 @@ tr:nth-child(even) td{background:rgba(255,255,255,.018)}
  .stats>div{min-width:0}
  .cards{grid-template-columns:minmax(0,1fr)!important}
 }
+
+/* Global emergency-light glow for every interactive button */
+button,.button,input[type="button"],input[type="submit"],input[type="reset"],[role="button"]{transition:box-shadow .22s ease,filter .22s ease,transform .22s ease;border-color:rgba(118,190,255,.35);box-shadow:0 0 0 1px rgba(115,184,255,.18),0 0 10px rgba(40,140,255,.18),0 0 16px rgba(255,53,76,.12),inset 0 1px 0 rgba(255,255,255,.09)}
+button:not(:disabled):hover,.button:hover,input[type="button"]:hover,input[type="submit"]:hover,input[type="reset"]:hover,[role="button"]:hover{filter:brightness(1.12);box-shadow:0 0 0 1px rgba(160,213,255,.48),0 0 16px rgba(40,140,255,.35),0 0 28px rgba(255,53,76,.24),0 8px 26px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.15)}
+button:active,.button:active,input[type="button"]:active,input[type="submit"]:active,input[type="reset"]:active{transform:translateY(1px);box-shadow:0 0 18px rgba(255,53,76,.38)}
+button:disabled,input:disabled{box-shadow:none;filter:saturate(.5)}
+@media(prefers-reduced-motion:no-preference){button:not(:disabled),.button,input[type="button"],input[type="submit"],input[type="reset"]{animation:portalGlowPulse 3.4s ease-in-out infinite alternate}@keyframes portalGlowPulse{from{box-shadow:0 0 0 1px rgba(115,184,255,.12),0 0 7px rgba(40,140,255,.12),0 0 10px rgba(255,53,76,.07)}to{box-shadow:0 0 0 1px rgba(115,184,255,.24),0 0 12px rgba(40,140,255,.22),0 0 17px rgba(255,53,76,.15)}}button:hover,.button:hover{animation:none}}
+@media(prefers-reduced-motion:reduce){button,.button,input[type="button"],input[type="submit"],input[type="reset"]{animation:none!important;transition:none!important}}
