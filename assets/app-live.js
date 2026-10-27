@@ -257,6 +257,33 @@
  }
  async function safeInit(){try{await init()}catch(e){console.error("Firefighter portal startup error:",e);const n=document.getElementById("loginMsg");if(n){n.textContent="The portal could not finish loading: "+(e?.message||"Unknown error")+". Please refresh and try again.";n.className="message error"}const b=document.getElementById("loginBtn");if(b)b.disabled=false}}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",safeInit,{once:true});else safeInit();
 
+  // Global capture handler keeps member certificate actions working even if the member history is re-rendered.
+  document.addEventListener("click",async event=>{
+    const view=event.target.closest?.("button[data-member-view-cert]");
+    const print=event.target.closest?.("button[data-member-print-cert]");
+    const button=view||print;
+    if(!button)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const recordId=button.getAttribute(view?"data-member-view-cert":"data-member-print-cert");
+    const oldText=button.textContent;
+    button.disabled=true;
+    button.textContent=print?"Preparing certificate…":"Opening certificate…";
+    try{
+      const {data:record,error}=await db.from("training_records").select("id,member_id,certificate_path,training_name").eq("id",recordId).maybeSingle();
+      if(error)throw error;
+      if(!record)throw Error("Training record not found. Refresh the page and sign in again.");
+      if(!user||record.member_id!==user.id)throw Error("This certificate is not assigned to the signed-in member.");
+      if(!record.certificate_path)throw Error("No certificate image is attached to this training record.");
+      await memberCertificateForMember(record.certificate_path,!!print);
+    }catch(error){
+      alert("Certificate action failed: "+(error?.message||String(error)));
+    }finally{
+      button.disabled=false;
+      button.textContent=oldText;
+    }
+  },true);
+
   document.addEventListener("click",async event=>{
     const edit=event.target.closest?.("[data-edit-cert]");
     if(!edit)return;
