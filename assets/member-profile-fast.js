@@ -20,7 +20,7 @@
       const c=client();
       if(!c)throw Error('Certificate service is not available. Please refresh and sign in again.');
       const raw=String(path).trim();
-      const candidates=[raw,raw.replace(/^\\/+/,''),raw.replace(/^firefighter-certificates\\//,'' )];
+      const candidates=[raw,raw.replace(/^\/+/,''),raw.replace(/^firefighter-certificates\//,'' )];
       let signedUrl=null,lastError=null;
       for(const candidate of [...new Set(candidates)]){
         const {data,error}=await c.storage.from('firefighter-certificates').createSignedUrl(candidate,600);
