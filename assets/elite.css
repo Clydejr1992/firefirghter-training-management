@@ -93,3 +93,34 @@ tr:nth-child(even) td{background:rgba(255,255,255,.018)}
  .tabs::-webkit-scrollbar{display:none}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Final finishing pass: target the real portal components and improve polish */
+.glass-card,.card,.stats>div,.member-hero,.bulletin,.login-form,.panelhead{
+ background-image:linear-gradient(145deg,rgba(20,42,66,.86),rgba(6,16,29,.94))!important;
+ border-color:rgba(119,174,228,.24)!important;
+ box-shadow:0 14px 38px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.035)!important;
+}
+.stats>div{position:relative;overflow:hidden}
+.stats>div:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,#68baff,#ff5364,transparent);opacity:.72}
+.stats b{background:linear-gradient(180deg,#fff,#bdd9f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.command-heading h2{background:linear-gradient(100deg,#fff 20%,#b8d8ff 70%,#ffb3bb);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.cards>.card,.grid2>.card{position:relative;overflow:hidden}
+.cards>.card:before,.grid2>.card:before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:linear-gradient(120deg,rgba(255,255,255,.045),transparent 30%);opacity:.8}
+.tabs button{min-height:40px;border-radius:12px!important}
+.tabs button.active{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 5px 18px rgba(0,0,0,.2)!important}
+.login-button{border-radius:13px!important}
+.login-note{color:#8ca4be!important}
+.member-hero{border:1px solid rgba(123,184,240,.25);border-radius:22px;padding:22px}
+.bulletin{border-left-color:#ff5264!important}
+.site-footer{color:#7890a8;border-top:1px solid rgba(130,180,230,.15)}
+@media(max-width:700px){
+ .topbar{gap:10px}
+ .brand{min-width:0;gap:12px}
+ .brand-copy{min-width:0}
+ .brand-copy h1{white-space:normal}
+ .top-actions button{padding:10px 12px}
+ .tabs{padding:6px!important;gap:5px!important}
+ .tabs button{flex:0 0 auto;padding:10px 12px!important}
+ .stats>div{min-width:0}
+ .cards{grid-template-columns:minmax(0,1fr)!important}
+}
