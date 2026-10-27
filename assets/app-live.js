@@ -89,20 +89,29 @@
   }catch(e){if(win&&!win.closed)win.close();alert("Unable to "+(print?"print":"open")+" certificate: "+(e?.message||"Unknown error"))}
  }
 
- async function loadDirectMessages(){
-  const box=$("memberDirectMessages"); if(!box)return;
-  box.innerHTML='<p class="muted">Loading private messages…</p>';
+ async function loadDirectMessages(adminMessages=[]){
+  const box=$("myMessages"); if(!box)return;
+  box.innerHTML='<p class="muted">Loading messages…</p>';
   try{
-   const [peopleRes,msgRes]=await Promise.all([
+   const own=adminMessages.filter(m=>m.member_id===user.id);
+   const [peopleRes,msgRes,replyRes]=await Promise.all([
     db.from("firefighter_profiles").select("id,full_name,role").eq("active",true).eq("role","firefighter").order("full_name"),
-    db.from("member_direct_messages").select("id,sender_id,recipient_id,body,created_at").order("created_at",{ascending:true})
+    db.from("member_direct_messages").select("id,sender_id,recipient_id,body,created_at").order("created_at",{ascending:true}),
+    db.from("member_message_replies").select("id,message_id,member_id,body,created_at").in("message_id",own.length?own.map(m=>m.id):["00000000-0000-0000-0000-000000000000"]).order("created_at",{ascending:true})
    ]);
-   if(peopleRes.error)throw peopleRes.error;if(msgRes.error)throw msgRes.error;
-   const people=peopleRes.data||[], msgs=msgRes.data||[], names=new Map(people.map(p=>[p.id,p.full_name||"Firefighter"]));
+   if(peopleRes.error)throw peopleRes.error;if(msgRes.error)throw msgRes.error;if(replyRes.error)throw replyRes.error;
+   const people=peopleRes.data||[], msgs=msgRes.data||[], replies=replyRes.data||[];
+   const names=new Map(people.map(p=>[p.id,p.full_name||"Firefighter"]));
    const relevant=msgs.filter(m=>m.sender_id===user.id||m.recipient_id===user.id);
-   box.innerHTML='<form id="directMessageForm" class="card"><h3>Message a Firefighter</h3><label class="field">Send to<select id="directRecipient" required><option value="">Choose a member…</option>'+people.filter(p=>p.id!==user.id).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.full_name||"Firefighter")+'</option>').join("")+'</select></label><label class="field">Message<textarea id="directBody" rows="3" maxlength="4000" required placeholder="Write your message…"></textarea></label><button class="primary" type="submit">Send Message</button><p id="directMessageStatus" aria-live="polite"></p></form><h3 style="margin-top:18px">Private Conversations</h3>'+(relevant.length?relevant.map(m=>'<article class="card" style="margin-top:10px"><p><strong>'+(m.sender_id===user.id?'You → '+esc(names.get(m.recipient_id)||'Member') : esc(names.get(m.sender_id)||'Member')+' → You')+'</strong></p><p>'+esc(m.body)+'</p><small class="muted">'+esc(new Date(m.created_at).toLocaleString())+'</small></article>').join(""):'<p class="muted">No direct messages yet.</p>');
-   $("directMessageForm").onsubmit=async e=>{e.preventDefault();const btn=e.submitter,recipient=$("directRecipient").value,body=$("directBody").value.trim();if(!recipient||!body)return;btn.disabled=true;try{const {error}=await db.from("member_direct_messages").insert({sender_id:user.id,recipient_id:recipient,body});if(error)throw error;await loadDirectMessages()}catch(err){const n=$("directMessageStatus");if(n){n.textContent="Message could not be sent: "+err.message;n.className="message error"}}finally{if(btn.isConnected)btn.disabled=false}};
-  }catch(err){box.innerHTML='<p class="message error">Private messaging could not load: '+esc(err.message)+'.</p>'}
+   const repliesByMessage=new Map();replies.forEach(r=>{if(!repliesByMessage.has(r.message_id))repliesByMessage.set(r.message_id,[]);repliesByMessage.get(r.message_id).push(r)});
+   const adminHtml=own.length?own.map(m=>'<article class="card" style="margin-top:12px"><h3>'+esc(m.subject)+'</h3><p>'+esc(m.body)+'</p>'+((repliesByMessage.get(m.id)||[]).map(r=>'<article class="card" style="margin:10px 0"><p><strong>Your reply</strong></p><p>'+esc(r.body)+'</p><small class="muted">'+esc(new Date(r.created_at).toLocaleString())+'</small></article>').join(""))+'<form class="member-reply-form" data-message-id="'+esc(m.id)+'" style="margin-top:12px"><label class="field">Reply to this message<textarea name="reply" rows="3" maxlength="4000" required placeholder="Write your reply…"></textarea></label><button class="primary" type="submit">Send Reply</button><p class="message" aria-live="polite"></p></form></article>').join(""):'<p class="muted">No department messages yet.</p>';
+   const directHtml='<form id="directMessageForm" class="card" style="margin-top:12px"><h3>Message a Firefighter</h3><label class="field">Send to<select id="directRecipient" required><option value="">Choose a member…</option>'+people.filter(p=>p.id!==user.id).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.full_name||"Firefighter")+'</option>').join("")+'</select></label><label class="field">Message<textarea id="directBody" rows="3" maxlength="4000" required placeholder="Write your message…"></textarea></label><button class="primary" type="submit">Send Message</button><p id="directMessageStatus" aria-live="polite"></p></form><h3 style="margin-top:18px">Member Conversations</h3>'+(relevant.length?relevant.map(m=>'<article class="card" style="margin-top:10px"><p><strong>'+(m.sender_id===user.id?'You → '+esc(names.get(m.recipient_id)||'Member'):esc(names.get(m.sender_id)||'Member')+' → You')+'</strong></p><p>'+esc(m.body)+'</p><small class="muted">'+esc(new Date(m.created_at).toLocaleString())+'</small>'+(m.recipient_id===user.id?'<form class="direct-reply-form" data-recipient="'+esc(m.sender_id)+'" style="margin-top:10px"><label class="field">Reply<textarea name="reply" rows="2" maxlength="4000" required placeholder="Reply to this message…"></textarea></label><button class="secondary" type="submit">Reply</button><p class="message" aria-live="polite"></p></form>':'')+'</article>').join(""):'<p class="muted">No member conversations yet.</p>');
+   box.innerHTML='<h3>Department Messages</h3>'+adminHtml+'<div class="divider" style="margin:18px 0"></div><h3>Private Member Messages</h3>'+directHtml;
+   document.querySelectorAll(".member-reply-form").forEach(form=>form.onsubmit=async e=>{e.preventDefault();const btn=e.submitter,status=form.querySelector(".message"),body=form.elements.reply.value.trim();if(!body)return;btn.disabled=true;try{const {error}=await db.from("member_message_replies").insert({message_id:form.dataset.messageId,member_id:user.id,body});if(error)throw error;await memberLoad()}catch(err){status.textContent="Reply could not be sent: "+err.message;status.className="message error";btn.disabled=false}});
+   const sendDirect=async(recipient,body)=>{const {error}=await db.from("member_direct_messages").insert({sender_id:user.id,recipient_id:recipient,body});if(error)throw error};
+   $("directMessageForm").onsubmit=async e=>{e.preventDefault();const btn=e.submitter,status=$("directMessageStatus"),recipient=$("directRecipient").value,body=$("directBody").value.trim();if(!recipient||!body)return;btn.disabled=true;try{await sendDirect(recipient,body);await memberLoad()}catch(err){status.textContent="Message could not be sent: "+err.message;status.className="message error";btn.disabled=false}};
+   document.querySelectorAll(".direct-reply-form").forEach(form=>form.onsubmit=async e=>{e.preventDefault();const btn=e.submitter,status=form.querySelector(".message"),body=form.elements.reply.value.trim(),recipient=form.dataset.recipient;if(!body||!recipient)return;btn.disabled=true;try{await sendDirect(recipient,body);await memberLoad()}catch(err){status.textContent="Reply could not be sent: "+err.message;status.className="message error";btn.disabled=false}});
+  }catch(err){box.innerHTML='<p class="message error">Messages could not load: '+esc(err.message)+'.</p>'}
  }
  async function memberLoad(){
   const [records,events,bulletins,messages,reqs]=await Promise.all([read("training_records"),read("training_events"),read("department_bulletins"),read("member_messages"),read("training_requirements")]);
@@ -134,8 +143,7 @@
   window.__memberCertDedupeObserver.observe(document.body,{childList:true,subtree:true});
   $("myHours").innerHTML=bulletins.filter(b=>b.kind!=="offer").map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"No bulletins.";
   $("myEvents").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.location)+' · '+e.hours+' hours</p></article>').join("")||"No upcoming training.";
-  $("myMessages").innerHTML=messages.filter(m=>m.member_id===user.id).map(m=>'<article class="card"><h3>'+esc(m.subject)+'</h3><p>'+esc(m.body)+'</p></article>').join("")||"No messages.";
-  await loadDirectMessages();
+  await loadDirectMessages(messages);
  }
  async function init(){
   document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab)?.classList.add("active")}));
