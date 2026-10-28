@@ -68,7 +68,16 @@
         db.from("training_file_records").select("training_file_id,training_name")
       ]);
       if(membersError)throw membersError;if(recordsError)throw recordsError;
-      const matrixMembers=(matrixMembersData||[]).map(m=>({id:String(m.id??""),name:typeof m.full_name==="string"?m.full_name.trim():""})).filter(m=>m.id&&m.name&&m.name!=="[object Object]").sort((a,b)=>a.name.localeCompare(b.name));
+      const asMemberName=value=>{
+        if(typeof value==="string"||typeof value==="number")return String(value).trim();
+        if(value&&typeof value==="object"){
+          for(const key of ["full_name","fullName","display_name","displayName","name","label","email","value","text"]){
+            const found=asMemberName(value[key]);if(found&&found!=="[object Object]")return found;
+          }
+        }
+        return "";
+      };
+      const matrixMembers=(matrixMembersData||[]).map(m=>({id:String(m.id??""),name:asMemberName(m.full_name)||asMemberName(m.display_name)||asMemberName(m.name)})).filter(m=>m.id&&m.name&&m.name!=="[object Object]").sort((a,b)=>a.name.localeCompare(b.name));
       const classes=[...new Set((matrixRecords||[]).map(r=>typeof r.training_name==="string"?r.training_name.trim():"").filter(Boolean))].sort((a,b)=>a.localeCompare(b));
       if(!matrixMembers.length){alert("No named firefighter training files were found in Supabase.");return;}
       if(!classes.length){alert("No saved training entries were found in firefighter training files.");return;}
