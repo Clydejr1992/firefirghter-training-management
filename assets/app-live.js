@@ -16,23 +16,28 @@
   if(role==="admin")await adminLoad();else await memberLoad();
  }
  function options(id,rows,label){const el=$(id);if(el)el.innerHTML=rows.map(r=>'<option value="'+esc(r.id)+'">'+esc(label(r))+'</option>').join("")}
- async function adminLoad(){
-  const [members,records,events,reqs,bulletins,messages,audits,repliesResult]=await Promise.all([read("firefighter_profiles"),read("training_records"),read("training_events"),read("training_requirements"),read("department_bulletins"),read("member_messages"),read("admin_audit_log"),db.from("member_message_replies").select("id,message_id,member_id,body,created_at").order("created_at",{ascending:true})]);
-  const expiryBox=$("certificationExpiry");
-  if(expiryBox){
+ async function renderCertificationExpiry(){
+  const box=$("certificationExpiry");if(!box)return;
+  box.innerHTML='<p class="muted">Loading certification status…</p>';
+  try{
+    const [members,records]=await Promise.all([read("firefighter_profiles"),read("training_records")]);
     const today=new Date();today.setHours(0,0,0,0);
-    const expiryRows=records.filter(r=>r.expiration_date).map(r=>{
-      const expiry=new Date(r.expiration_date+"T00:00:00");
+    const rows=records.filter(r=>r.expiration_date).map(record=>{
+      const expiry=new Date(record.expiration_date+"T00:00:00");
       const days=Math.ceil((expiry.getTime()-today.getTime())/86400000);
-      const memberName=members.find(m=>m.id===r.member_id)?.full_name||"Member";
-      return {record:r,memberName,days};
+      return {record,days,memberName:members.find(m=>m.id===record.member_id)?.full_name||"Member"};
     }).filter(x=>x.days<0||x.days<=90).sort((a,b)=>a.days-b.days||a.memberName.localeCompare(b.memberName));
-    expiryBox.innerHTML=expiryRows.length?'<div class="expiry-list">'+expiryRows.map(x=>{
+    box.innerHTML=rows.length?'<div class="expiry-list">'+rows.map(x=>{
       const status=x.days<0?'<span class="expiry-status expired">EXPIRED</span>':x.days<=30?'<span class="expiry-status urgent">DUE WITHIN 30 DAYS</span>':x.days<=60?'<span class="expiry-status warning">DUE WITHIN 60 DAYS</span>':'<span class="expiry-status soon">DUE WITHIN 90 DAYS</span>';
       const timing=x.days<0?Math.abs(x.days)+' day'+(Math.abs(x.days)===1?'':'s')+' overdue':x.days===0?'Expires today':'Expires in '+x.days+' day'+(x.days===1?'':'s');
       return '<article class="card expiry-item"><div><h3>'+esc(x.memberName)+'</h3><p><strong>'+esc(x.record.training_name||"Certification")+'</strong></p><p class="muted">Expiration: '+esc(x.record.expiration_date)+' · '+esc(timing)+'</p></div>'+status+'</article>';
     }).join("")+'</div>':'<p class="muted">No certifications are expired or due to expire in the next 90 days.</p>';
-  }
+  }catch(err){console.error("Certification expiry tracker failed:",err);box.innerHTML='<p class="message error">Certification status could not load. '+esc(err?.message||"Check your connection and administrator permissions.")+'</p>';}
+ }
+ async function adminLoad(){
+  void renderCertificationExpiry();
+  const [members,records,events,reqs,bulletins,messages,audits,repliesResult]=await Promise.all([read("firefighter_profiles"),read("training_records"),read("training_events"),read("training_requirements"),read("department_bulletins"),read("member_messages"),read("admin_audit_log"),db.from("member_message_replies").select("id,message_id,member_id,body,created_at").order("created_at",{ascending:true})]);
+
   if(repliesResult.error)console.error("Member replies could not load:",repliesResult.error);const allMessageReplies=repliesResult.data||[];
   const active=members.filter(m=>m.active),yr=records.filter(r=>r.training_date?.startsWith(String(new Date().getFullYear())));
   $("sMembers").textContent=active.filter(m=>m.role==="firefighter").length;$("sHours").textContent=yr.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1);$("sRecords").textContent=records.length;
