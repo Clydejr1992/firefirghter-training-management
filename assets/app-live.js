@@ -63,14 +63,37 @@
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
   $("downloadClassMatrix").onclick=()=>{
     try{
-      const names=[...new Set(members.map(m=>m.full_name||"Unnamed Member"))].sort((a,b)=>a.localeCompare(b));
-      const classes=[...new Set(records.map(r=>String(r.training_name||"Unspecified Class").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-      if(!names.length){alert("There are no members to include in the class matrix.");return}
+      // Use each firefighter profile's full_name as a plain-text column heading.
+      const matrixMembers=members
+        .filter(m=>m.active && m.role==="firefighter")
+        .map(m=>({id:m.id,name:String(m.full_name??"").trim()}))
+        .filter(m=>m.name.length>0)
+        .sort((a,b)=>a.name.localeCompare(b.name));
+      const classes=[...new Set(records.map(r=>String(r.training_name||"").trim()).filter(Boolean))]
+        .sort((a,b)=>a.localeCompare(b));
+      if(!matrixMembers.length){alert("There are no active firefighters with names to include in the class matrix.");return}
       if(!classes.length){alert("There are no saved certificates or training records to include yet.");return}
-      const rows=[["Class Name",...names],...classes.map(cls=>[cls,...names.map(name=>records.some(r=>(members.find(m=>m.id===r.member_id)?.full_name||"Unnamed Member")===name&&String(r.training_name||"Unspecified Class").trim()===cls)?"X":"")])];
+      const rows=[
+        ["Class Name",...matrixMembers.map(m=>m.name)],
+        ...classes.map(cls=>[
+          cls,
+          ...matrixMembers.map(member=>records.some(r=>
+            String(r.member_id)===String(member.id) &&
+            String(r.training_name||"").trim()===cls
+          )?"X":"")
+        ])
+      ];
       const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
       const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
-      const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";a.style.display="none";document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;
+      a.download="firefighter-class-matrix.csv";
+      a.style.display="none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),60000);
     }catch(err){alert("Unable to create class matrix: "+err.message)}
   };
   $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
