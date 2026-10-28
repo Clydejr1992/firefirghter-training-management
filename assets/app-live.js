@@ -63,38 +63,41 @@
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
   $("downloadClassMatrix").onclick=()=>{
     try{
-      // Use each firefighter profile's full_name as a plain-text column heading.
-      const plainMemberName=value=>{
+      // Always convert profile names to real text; never allow an object to become a CSV heading.
+      const textValue=value=>{
         if(typeof value==="string"||typeof value==="number")return String(value).trim();
+        if(Array.isArray(value))return value.map(textValue).filter(Boolean).join(" ");
         if(value&&typeof value==="object"){
-          for(const key of ["full_name","name","display_name","label","email"]){
-            if(typeof value[key]==="string"&&value[key].trim())return value[key].trim();
+          for(const key of ["full_name","display_name","name","first_name","last_name","label","email"]){
+            if(value[key]!==undefined&&value[key]!==null){
+              const part=textValue(value[key]);
+              if(part)return part;
+            }
           }
-          return "";
         }
         return "";
       };
       const matrixMembers=members
-        .filter(m=>m.active && m.role==="firefighter")
-        .map(m=>({id:m.id,name:plainMemberName(m.full_name)||plainMemberName(m.name)||plainMemberName(m.display_name)}))
-        .filter(m=>m.name.length>0)
+        .filter(m=>m&&m.active&&m.role==="firefighter")
+        .map(m=>({id:m.id,name:textValue(m.full_name)||textValue(m.display_name)||textValue(m.name)||textValue(m.email)}))
+        .filter(m=>m.name&&m.id!==undefined&&m.id!==null)
         .sort((a,b)=>a.name.localeCompare(b.name));
-      const classes=[...new Set(records.map(r=>String(r.training_name||"").trim()).filter(Boolean))]
+      const classes=[...new Set(records.map(r=>textValue(r.training_name)).filter(Boolean))]
         .sort((a,b)=>a.localeCompare(b));
       if(!matrixMembers.length){alert("There are no active firefighters with names to include in the class matrix.");return}
       if(!classes.length){alert("There are no saved certificates or training records to include yet.");return}
       const rows=[
-        ["Class Name",...matrixMembers.map(m=>m.name)],
+        ["Training / Certificate",...matrixMembers.map(m=>m.name)],
         ...classes.map(cls=>[
           cls,
           ...matrixMembers.map(member=>records.some(r=>
             String(r.member_id)===String(member.id) &&
-            String(r.training_name||"").trim()===cls
+            textValue(r.training_name)===cls
           )?"X":"")
         ])
       ];
       const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
-      const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
+      const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
       const url=URL.createObjectURL(blob);
       const a=document.createElement("a");
       a.href=url;
