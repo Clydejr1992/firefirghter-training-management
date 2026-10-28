@@ -63,51 +63,35 @@
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
   $("downloadClassMatrix").onclick=()=>{
     try{
-      // Always convert profile names to real text; never allow an object to become a CSV heading.
-      const textValue=value=>{
-        if(typeof value==="string"||typeof value==="number")return String(value).trim();
-        if(Array.isArray(value))return value.map(textValue).filter(Boolean).join(" ");
-        if(value&&typeof value==="object"){
-          for(const key of ["full_name","display_name","name","first_name","last_name","label","email"]){
-            if(value[key]!==undefined&&value[key]!==null){
-              const part=textValue(value[key]);
-              if(part)return part;
-            }
+      const toText=(v,seen=new Set())=>{
+        if(v===null||v===undefined)return "";
+        if(typeof v==="string"||typeof v==="number")return String(v).trim();
+        if(Array.isArray(v))return v.map(x=>toText(x,seen)).filter(Boolean).join(" ").trim();
+        if(typeof v==="object"){
+          if(seen.has(v))return "";
+          seen.add(v);
+          for(const k of ["full_name","fullName","display_name","displayName","name","first_name","firstName","last_name","lastName","label","email","value","text"]){
+            if(v[k]!==undefined&&v[k]!==null){const t=toText(v[k],seen);if(t)return t;}
           }
+          const ignored=/^(id|user_id|member_id|uuid|role|active|created_at|updated_at|avatar_url|photo_url|metadata|raw_user_meta_data)$/i;
+          return Object.entries(v).filter(([k])=>!ignored.test(k)).map(([,x])=>toText(x,seen)).filter(Boolean).join(" ").trim();
         }
         return "";
       };
-      const matrixMembers=members
-        .filter(m=>m&&m.active&&m.role==="firefighter")
-        .map(m=>({id:m.id,name:textValue(m.full_name)||textValue(m.display_name)||textValue(m.name)||textValue(m.email)}))
-        .filter(m=>m.name&&m.id!==undefined&&m.id!==null)
+      const matrixMembers=members.filter(m=>m&&m.active&&m.role==="firefighter")
+        .map(m=>({id:m.id,name:toText(m.full_name)||toText(m.display_name)||toText(m.name)||toText(m.email)}))
+        .filter(m=>m.id!==undefined&&m.id!==null&&m.name)
         .sort((a,b)=>a.name.localeCompare(b.name));
-      const classes=[...new Set(records.map(r=>textValue(r.training_name)).filter(Boolean))]
-        .sort((a,b)=>a.localeCompare(b));
-      if(!matrixMembers.length){alert("There are no active firefighters with names to include in the class matrix.");return}
-      if(!classes.length){alert("There are no saved certificates or training records to include yet.");return}
-      const rows=[
-        ["Training / Certificate",...matrixMembers.map(m=>m.name)],
-        ...classes.map(cls=>[
-          cls,
-          ...matrixMembers.map(member=>records.some(r=>
-            String(r.member_id)===String(member.id) &&
-            textValue(r.training_name)===cls
-          )?"X":"")
-        ])
-      ];
-      const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+      const classes=[...new Set(records.map(r=>toText(r.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      if(!matrixMembers.length){alert("No active firefighter names could be read from the member profiles.");return;}
+      if(!classes.length){alert("There are no saved training records to include yet.");return;}
+      const rows=[["Training / Certificate",...matrixMembers.map(m=>m.name)],
+        ...classes.map(cls=>[cls,...matrixMembers.map(member=>records.some(r=>String(r.member_id)===String(member.id)&&toText(r.training_name)===cls)?"X":"")])];
+      const csv=rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
       const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");
-      a.href=url;
-      a.download="firefighter-class-matrix.csv";
-      a.style.display="none";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(()=>URL.revokeObjectURL(url),60000);
-    }catch(err){alert("Unable to create class matrix: "+err.message)}
+      const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";a.style.display="none";
+      document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }catch(err){alert("Unable to create class matrix: "+(err?.message||String(err)));}
   };
   $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
  }
