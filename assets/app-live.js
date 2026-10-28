@@ -63,33 +63,34 @@
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
   $("downloadClassMatrix").onclick=()=>{
     try{
-      const toText=(v,seen=new Set())=>{
-        if(v===null||v===undefined)return "";
-        if(typeof v==="string"||typeof v==="number")return String(v).trim();
-        if(Array.isArray(v))return v.map(x=>toText(x,seen)).filter(Boolean).join(" ").trim();
-        if(typeof v==="object"){
-          if(seen.has(v))return "";
-          seen.add(v);
-          for(const k of ["full_name","fullName","display_name","displayName","name","first_name","firstName","last_name","lastName","label","email","value","text"]){
-            if(v[k]!==undefined&&v[k]!==null){const t=toText(v[k],seen);if(t)return t;}
+      // Supabase stores these as text columns: firefighter_profiles.full_name and training_records.training_name.
+      const textValue=value=>{
+        if(value===null||value===undefined)return "";
+        if(typeof value==="string"||typeof value==="number")return String(value).trim();
+        if(typeof value==="object"){
+          for(const key of ["full_name","display_name","name","label","email","value","text"]){
+            const item=value[key];
+            if(typeof item==="string"||typeof item==="number"){const text=String(item).trim();if(text)return text;}
           }
-          const ignored=/^(id|user_id|member_id|uuid|role|active|created_at|updated_at|avatar_url|photo_url|metadata|raw_user_meta_data)$/i;
-          return Object.entries(v).filter(([k])=>!ignored.test(k)).map(([,x])=>toText(x,seen)).filter(Boolean).join(" ").trim();
         }
         return "";
       };
-      const matrixMembers=members.filter(m=>m&&m.active&&m.role==="firefighter")
-        .map(m=>({id:m.id,name:toText(m.full_name)||toText(m.display_name)||toText(m.name)||toText(m.email)}))
-        .filter(m=>m.id!==undefined&&m.id!==null&&m.name)
+      const matrixMembers=members
+        .filter(m=>m&&m.active===true&&m.role==="firefighter")
+        .map(m=>({id:String(m.id??""),name:textValue(m.full_name)||textValue(m.display_name)||textValue(m.name)||textValue(m.email)}))
+        .filter(m=>m.id&&m.name)
         .sort((a,b)=>a.name.localeCompare(b.name));
-      const classes=[...new Set(records.map(r=>toText(r.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-      if(!matrixMembers.length){alert("No active firefighter names could be read from the member profiles.");return;}
+      const classes=[...new Set(records.map(r=>textValue(r.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      if(!matrixMembers.length){alert("No active firefighter names were returned from Supabase firefighter_profiles.");return;}
       if(!classes.length){alert("There are no saved training records to include yet.");return;}
-      const rows=[["Training / Certificate",...matrixMembers.map(m=>m.name)],
-        ...classes.map(cls=>[cls,...matrixMembers.map(member=>records.some(r=>String(r.member_id)===String(member.id)&&toText(r.training_name)===cls)?"X":"")])];
-      const csv=rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+      const rows=[["Training / Certificate",...matrixMembers.map(m=>m.name)]];
+      for(const cls of classes){
+        rows.push([cls,...matrixMembers.map(member=>records.some(r=>String(r.member_id??"")===member.id&&textValue(r.training_name)===cls)?"X":"")]);
+      }
+      const csv=rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\\r\\n");
       const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
-      const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";a.style.display="none";
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";a.style.display="none";
       document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);
     }catch(err){alert("Unable to create class matrix: "+(err?.message||String(err)));}
   };
