@@ -64,9 +64,19 @@
   $("downloadClassMatrix").onclick=()=>{
     try{
       // Use each firefighter profile's full_name as a plain-text column heading.
+      const plainMemberName=value=>{
+        if(typeof value==="string"||typeof value==="number")return String(value).trim();
+        if(value&&typeof value==="object"){
+          for(const key of ["full_name","name","display_name","label","email"]){
+            if(typeof value[key]==="string"&&value[key].trim())return value[key].trim();
+          }
+          return "";
+        }
+        return "";
+      };
       const matrixMembers=members
         .filter(m=>m.active && m.role==="firefighter")
-        .map(m=>({id:m.id,name:String(m.full_name??"").trim()}))
+        .map(m=>({id:m.id,name:plainMemberName(m.full_name)||plainMemberName(m.name)||plainMemberName(m.display_name)}))
         .filter(m=>m.name.length>0)
         .sort((a,b)=>a.name.localeCompare(b.name));
       const classes=[...new Set(records.map(r=>String(r.training_name||"").trim()).filter(Boolean))]
