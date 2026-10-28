@@ -18,7 +18,22 @@
  function options(id,rows,label){const el=$(id);if(el)el.innerHTML=rows.map(r=>'<option value="'+esc(r.id)+'">'+esc(label(r))+'</option>').join("")}
  async function adminLoad(){
   const [members,records,events,reqs,bulletins,messages,audits,repliesResult]=await Promise.all([read("firefighter_profiles"),read("training_records"),read("training_events"),read("training_requirements"),read("department_bulletins"),read("member_messages"),read("admin_audit_log"),db.from("member_message_replies").select("id,message_id,member_id,body,created_at").order("created_at",{ascending:true})]);
-  if(repliesResult.error)throw repliesResult.error;const allMessageReplies=repliesResult.data||[];
+  const expiryBox=$("certificationExpiry");
+  if(expiryBox){
+    const today=new Date();today.setHours(0,0,0,0);
+    const expiryRows=records.filter(r=>r.expiration_date).map(r=>{
+      const expiry=new Date(r.expiration_date+"T00:00:00");
+      const days=Math.ceil((expiry.getTime()-today.getTime())/86400000);
+      const memberName=members.find(m=>m.id===r.member_id)?.full_name||"Member";
+      return {record:r,memberName,days};
+    }).filter(x=>x.days<0||x.days<=90).sort((a,b)=>a.days-b.days||a.memberName.localeCompare(b.memberName));
+    expiryBox.innerHTML=expiryRows.length?'<div class="expiry-list">'+expiryRows.map(x=>{
+      const status=x.days<0?'<span class="expiry-status expired">EXPIRED</span>':x.days<=30?'<span class="expiry-status urgent">DUE WITHIN 30 DAYS</span>':x.days<=60?'<span class="expiry-status warning">DUE WITHIN 60 DAYS</span>':'<span class="expiry-status soon">DUE WITHIN 90 DAYS</span>';
+      const timing=x.days<0?Math.abs(x.days)+' day'+(Math.abs(x.days)===1?'':'s')+' overdue':x.days===0?'Expires today':'Expires in '+x.days+' day'+(x.days===1?'':'s');
+      return '<article class="card expiry-item"><div><h3>'+esc(x.memberName)+'</h3><p><strong>'+esc(x.record.training_name||"Certification")+'</strong></p><p class="muted">Expiration: '+esc(x.record.expiration_date)+' · '+esc(timing)+'</p></div>'+status+'</article>';
+    }).join("")+'</div>':'<p class="muted">No certifications are expired or due to expire in the next 90 days.</p>';
+  }
+  if(repliesResult.error)console.error("Member replies could not load:",repliesResult.error);const allMessageReplies=repliesResult.data||[];
   const active=members.filter(m=>m.active),yr=records.filter(r=>r.training_date?.startsWith(String(new Date().getFullYear())));
   $("sMembers").textContent=active.filter(m=>m.role==="firefighter").length;$("sHours").textContent=yr.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1);$("sRecords").textContent=records.length;
   $("sDue").textContent=records.filter(r=>r.expiration_date&&new Date(r.expiration_date)<new Date(Date.now()+30*86400000)).length;$("sRequired").textContent=Math.max(0,reqs.length*active.filter(m=>m.role==="firefighter").length-records.filter(r=>r.satisfies_requirement).length);
@@ -38,21 +53,7 @@
   $("bulletinList").innerHTML=bulletins.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).map(b=>{const details=[b.event_date?"Training date: "+esc(b.event_date):"",b.event_time?"Time: "+esc(b.event_time):"",b.location?"Location: "+esc(b.location):"",b.hours!==null&&b.hours!==undefined&&b.hours!==""?"Hours: "+esc(b.hours):"",b.instructor?"Instructor: "+esc(b.instructor):""].filter(Boolean);return '<article class="card"><p class="muted"><strong>PUBLISHED</strong> · '+esc(b.kind||"announcement")+(b.created_at?" · Posted "+esc(new Date(b.created_at).toLocaleString()):"")+'</p><h3>'+esc(b.title||"Untitled announcement")+'</h3><p>'+esc(b.body||"")+'</p>'+(details.length?'<div class="published-details"><h4>Training details</h4><ul>'+details.map(d=>"<li>"+d+"</li>").join("")+'</ul></div>':"")+'<button type="button" data-remove-item="'+esc(b.id)+'">Delete Published Item</button></article>'}).join("")||"<p>No published items.</p>";
   $("adminUpcoming").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<p>'+esc(e.title)+' — '+esc(e.event_date)+' at '+esc(e.location)+'</p>').join("")||"No upcoming training.";
   $("adminAlerts").textContent=active.length+" active accounts · "+records.length+" training records";
-  const expiryBox=$("certificationExpiry");
-  if(expiryBox){
-    const today=new Date();today.setHours(0,0,0,0);
-    const expiryRows=records.filter(r=>r.expiration_date).map(r=>{
-      const expiry=new Date(r.expiration_date+"T00:00:00");
-      const days=Math.ceil((expiry.getTime()-today.getTime())/86400000);
-      const memberName=members.find(m=>m.id===r.member_id)?.full_name||"Member";
-      return {record:r,memberName,days};
-    }).filter(x=>x.days<0||x.days<=90).sort((a,b)=>a.days-b.days||a.memberName.localeCompare(b.memberName));
-    expiryBox.innerHTML=expiryRows.length?'<div class="expiry-list">'+expiryRows.map(x=>{
-      const status=x.days<0?'<span class="expiry-status expired">EXPIRED</span>':x.days<=30?'<span class="expiry-status urgent">DUE WITHIN 30 DAYS</span>':x.days<=60?'<span class="expiry-status warning">DUE WITHIN 60 DAYS</span>':'<span class="expiry-status soon">DUE WITHIN 90 DAYS</span>';
-      const timing=x.days<0?Math.abs(x.days)+' day'+(Math.abs(x.days)===1?'':'s')+' overdue':x.days===0?'Expires today':'Expires in '+x.days+' day'+(x.days===1?'':'s');
-      return '<article class="card expiry-item"><div><h3>'+esc(x.memberName)+'</h3><p><strong>'+esc(x.record.training_name||"Certification")+'</strong></p><p class="muted">Expiration: '+esc(x.record.expiration_date)+' · '+esc(timing)+'</p></div>'+status+'</article>';
-    }).join("")+'</div>':'<p class="muted">No certifications are expired or due to expire in the next 90 days.</p>';
-  }
+
   $("activity").innerHTML=audits.slice(-10).reverse().map(a=>'<p>'+esc(a.action)+' · '+esc(a.entity_type)+' · '+esc(a.created_at)+'</p>').join("")||"No activity yet.";
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
   $("downloadClassMatrix").onclick=()=>{
