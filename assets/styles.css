@@ -105,3 +105,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 @media(prefers-reduced-motion:reduce){
  *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* Certification expiration dashboard */
+.expiry-list{display:grid;gap:10px}
+.expiry-item{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0}
+.expiry-item h3{margin:0 0 6px}
+.expiry-item p{margin:4px 0}
+.expiry-status{display:inline-block;flex:0 0 auto;border-radius:999px;padding:6px 10px;font-size:.72rem;font-weight:800;letter-spacing:.03em}
+.expiry-status.expired{background:#fee2e2;color:#991b1b}
+.expiry-status.urgent{background:#ffedd5;color:#9a3412}
+.expiry-status.warning{background:#fef3c7;color:#92400e}
+.expiry-status.soon{background:#dbeafe;color:#1d4ed8}
+@media(max-width:600px){.expiry-item{align-items:flex-start;flex-direction:column;gap:8px}}
