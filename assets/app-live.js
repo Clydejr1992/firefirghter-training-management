@@ -63,36 +63,43 @@
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
   $("downloadClassMatrix").onclick=()=>{
     try{
-      // Supabase stores these as text columns: firefighter_profiles.full_name and training_records.training_name.
-      const textValue=value=>{
-        if(value===null||value===undefined)return "";
+      // Use only the actual text columns from Supabase; never stringify a row/object as a name.
+      const asText=value=>{
         if(typeof value==="string"||typeof value==="number")return String(value).trim();
-        if(typeof value==="object"){
+        if(value&&typeof value==="object"){
           for(const key of ["full_name","display_name","name","label","email","value","text"]){
-            const item=value[key];
-            if(typeof item==="string"||typeof item==="number"){const text=String(item).trim();if(text)return text;}
+            if(typeof value[key]==="string"||typeof value[key]==="number"){
+              const result=String(value[key]).trim();
+              if(result)return result;
+            }
           }
         }
         return "";
       };
       const matrixMembers=members
         .filter(m=>m&&m.active===true&&m.role==="firefighter")
-        .map(m=>({id:String(m.id??""),name:textValue(m.full_name)||textValue(m.display_name)||textValue(m.name)||textValue(m.email)}))
-        .filter(m=>m.id&&m.name)
+        .map(m=>({id:asText(m.id),name:asText(m.full_name)||asText(m.display_name)||asText(m.name)||asText(m.email)}))
+        .filter(m=>m.id&&m.name&&m.name!=="[object Object]")
         .sort((a,b)=>a.name.localeCompare(b.name));
-      const classes=[...new Set(records.map(r=>textValue(r.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-      if(!matrixMembers.length){alert("No active firefighter names were returned from Supabase firefighter_profiles.");return;}
+      const classes=[...new Set(records.map(r=>asText(r.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      if(!matrixMembers.length){alert("No active firefighter names were returned from Supabase firefighter_profiles. Check the firefighter profiles and active status.");return;}
       if(!classes.length){alert("There are no saved training records to include yet.");return;}
       const rows=[["Training / Certificate",...matrixMembers.map(m=>m.name)]];
       for(const cls of classes){
-        rows.push([cls,...matrixMembers.map(member=>records.some(r=>String(r.member_id??"")===member.id&&textValue(r.training_name)===cls)?"X":"")]);
+        rows.push([cls,...matrixMembers.map(member=>records.some(r=>asText(r.member_id)===member.id&&asText(r.training_name)===cls)?"X":"")]);
       }
-      const csv=rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\\r\\n");
-      const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
+      const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+      const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
       const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";a.style.display="none";
-      document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),60000);
-    }catch(err){alert("Unable to create class matrix: "+(err?.message||String(err)));}
+      const link=document.createElement("a");
+      link.href=url;
+      link.download="firefighter-class-matrix.csv";
+      link.style.display="none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+    }catch(err){console.error("Class Matrix export failed:",err);alert("Unable to create class matrix: "+(err?.message||String(err)));}
   };
   $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
  }
