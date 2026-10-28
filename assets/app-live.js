@@ -61,32 +61,28 @@
 
   $("activity").innerHTML=audits.slice(-10).reverse().map(a=>'<p>'+esc(a.action)+' · '+esc(a.entity_type)+' · '+esc(a.created_at)+'</p>').join("")||"No activity yet.";
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
-  $("downloadClassMatrix").onclick=()=>{
+  $("downloadClassMatrix").onclick=async()=>{
     try{
-      // Use only the actual text columns from Supabase; never stringify a row/object as a name.
-      const asText=value=>{
-        if(typeof value==="string"||typeof value==="number")return String(value).trim();
-        if(value&&typeof value==="object"){
-          for(const key of ["full_name","display_name","name","label","email","value","text"]){
-            if(typeof value[key]==="string"||typeof value[key]==="number"){
-              const result=String(value[key]).trim();
-              if(result)return result;
-            }
-          }
-        }
-        return "";
-      };
-      const matrixMembers=members
-        .filter(m=>m&&m.active===true&&m.role==="firefighter")
-        .map(m=>({id:asText(m.id),name:asText(m.full_name)||asText(m.display_name)||asText(m.name)||asText(m.email)}))
+      // The Class Matrix data is stored in training_files + training_file_records,
+      // not firefighter_profiles + training_records. Join by training_file_id.
+      const [{data:matrixMembersData,error:membersError},{data:matrixRecords,error:recordsError}]=await Promise.all([
+        db.from("training_files").select("id,full_name").order("full_name",{ascending:true}),
+        db.from("training_file_records").select("training_file_id,training_name")
+      ]);
+      if(membersError)throw membersError;
+      if(recordsError)throw recordsError;
+      const matrixMembers=(matrixMembersData||[])
+        .map(m=>({id:String(m.id??""),name:typeof m.full_name==="string"?m.full_name.trim():""}))
         .filter(m=>m.id&&m.name&&m.name!=="[object Object]")
         .sort((a,b)=>a.name.localeCompare(b.name));
-      const classes=[...new Set(records.map(r=>asText(r.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-      if(!matrixMembers.length){alert("No active firefighter names were returned from Supabase firefighter_profiles. Check the firefighter profiles and active status.");return;}
-      if(!classes.length){alert("There are no saved training records to include yet.");return;}
+      const classes=[...new Set((matrixRecords||[]).map(r=>typeof r.training_name==="string"?r.training_name.trim():"").filter(Boolean))]
+        .sort((a,b)=>a.localeCompare(b));
+      if(!matrixMembers.length){alert("No named firefighter training files were found in Supabase.");return;}
+      if(!classes.length){alert("No saved training entries were found in firefighter training files.");return;}
+      const completed=new Set((matrixRecords||[]).map(r=>String(r.training_file_id)+"::"+String(r.training_name||"").trim()));
       const rows=[["Training / Certificate",...matrixMembers.map(m=>m.name)]];
       for(const cls of classes){
-        rows.push([cls,...matrixMembers.map(member=>records.some(r=>asText(r.member_id)===member.id&&asText(r.training_name)===cls)?"X":"")]);
+        rows.push([cls,...matrixMembers.map(member=>completed.has(member.id+"::"+cls)?"X":"")]);
       }
       const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
       const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
