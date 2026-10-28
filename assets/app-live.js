@@ -132,25 +132,8 @@
    $("mdue").textContent=dueRecords.length;
    $("memberNotices").innerHTML=dueRecords.length?'<div class="card" style="margin:16px 0;border-color:rgba(255,90,110,.55)"><div class="card-kicker">CERTIFICATION ATTENTION</div><h2>Certifications Due or Expired</h2><p>These certifications are expired or will expire within 30 days. Open the attached certificate to review it.</p>'+dueRecords.map(r=>{const expired=new Date(r.expiration_date)<new Date(new Date().toDateString());const hasCert=!!r.certificate_path;return '<article class="card" style="margin-top:12px"><h3>'+esc(r.training_name)+'</h3><p><strong>'+(expired?'Expired':'Expiration date')+':</strong> '+esc(r.expiration_date)+'</p><p>'+esc(r.location||'')+'</p>'+(hasCert?'<button type="button" class="secondary" data-member-view-cert="'+esc(r.id)+'">View Certificate</button><button type="button" class="primary" data-member-print-cert="'+esc(r.id)+'">Print Certificate</button>':'<p class="muted">No certificate is attached to this training record.</p>')+'</article>'}).join('')+'</div>':'<div class="card" style="margin:16px 0"><div class="card-kicker">CERTIFICATION STATUS</div><h3>No certifications due in the next 30 days</h3></div>';
    $("mmissing").textContent=Math.max(0,reqs.length-mine.filter(r=>r.satisfies_requirement).length);
-  $("myRecords").innerHTML=mine.map(r=>{
-    const hasCert=!!r.certificate_path;
-    return '<article class="card" data-record-id="'+esc(r.id)+'"><h3>'+esc(r.training_name)+'</h3><p>'+esc(r.training_date)+' · '+r.hours+' hours</p><p>'+esc(r.location)+'</p><div class="row" style="margin-top:10px"><button type="button" class="secondary" data-member-view-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>View Certificate</button><button type="button" class="primary" data-member-print-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>Print Certificate</button></div>'+(hasCert?'':'<p class="muted">Certificate not attached to this record yet.</p>')+'</article>';
-  }).join("")||"No training records yet.";
-  // Enforce one certificate action of each type per training record across the entire history.
-  const dedupeCertificateButtons=()=>{
-    const seen=new Set();
-    document.querySelectorAll("#myRecords button[data-member-view-cert],#myRecords button[data-member-print-cert]").forEach(button=>{
-      const kind=button.hasAttribute("data-member-view-cert")?"view":"print";
-      const recordId=button.getAttribute(kind==="view"?"data-member-view-cert":"data-member-print-cert");
-      const key=kind+":"+recordId;
-      if(seen.has(key)){button.remove();return;}
-      seen.add(key);
-    });
-  };
-  dedupeCertificateButtons();
-  if(window.__memberCertDedupeObserver)window.__memberCertDedupeObserver.disconnect();
-  window.__memberCertDedupeObserver=new MutationObserver(()=>dedupeCertificateButtons());
-  window.__memberCertDedupeObserver.observe(document.body,{childList:true,subtree:true});
+  $("myRecords").innerHTML='<article class="card"><div class="card-kicker">PRIVATE TRAINING FOLDER</div><h3>'+esc((profile.full_name||user.email||"My")+" Training Folder")+'</h3><p>'+mine.length+' training records. Open the folder to view certificate actions.</p><button type="button" class="primary" id="openMyTrainingFolder">Open Folder</button></article><div id="myTrainingFolderContents" hidden></div>';
+  $("openMyTrainingFolder").onclick=()=>{const contents=$("myTrainingFolderContents");if(contents.hidden){contents.innerHTML=mine.map(r=>{const hasCert=!!r.certificate_path;return '<article class="card"><h3>'+esc(r.training_name)+'</h3><p>'+esc(r.training_date)+' · '+esc(r.hours)+' hours</p><p>'+esc(r.location||"")+'</p><button type="button" class="secondary" data-member-view-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>View Certificate</button> <button type="button" class="primary" data-member-print-cert="'+esc(r.id)+'" '+(hasCert?'':'disabled')+'>Print Certificate</button></article>'}).join("")||"No training records yet.";contents.hidden=false;$("openMyTrainingFolder").textContent="Close Folder"}else{contents.hidden=true;$("openMyTrainingFolder").textContent="Open Folder"}};
   $("myHours").innerHTML=bulletins.filter(b=>b.kind!=="offer").map(b=>'<article class="card"><h3>'+esc(b.title)+'</h3><p>'+esc(b.body)+'</p></article>').join("")||"No bulletins.";
   $("myEvents").innerHTML=events.filter(e=>e.event_date>=new Date().toISOString().slice(0,10)).map(e=>'<article class="card"><h3>'+esc(e.title)+'</h3><p>'+esc(e.event_date)+' · '+esc(e.location)+' · '+e.hours+' hours</p></article>').join("")||"No upcoming training.";
   await loadDirectMessages(messages);
