@@ -23,9 +23,10 @@
    const members=(files||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name);
    const profileMembers=(profiles||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name);
    // Merge folder-based members and profile-based firefighters, including C. Ramey.
+   const normalizeName=name=>String(name??"").normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
    const merged=new Map();
-   for(const m of members)merged.set(m.name.toLowerCase(),{name:m.name,folderId:m.id,profileId:""});
-   for(const p of profileMembers){const key=p.name.toLowerCase();const item=merged.get(key);if(item)item.profileId=p.id;else merged.set(key,{name:p.name,folderId:"",profileId:p.id});}
+   for(const m of members){const key=normalizeName(m.name);const item=merged.get(key);if(item){if(!item.folderIds.includes(m.id))item.folderIds.push(m.id);}else merged.set(key,{name:m.name,folderIds:[m.id],profileIds:[]});}
+   for(const p of profileMembers){const key=normalizeName(p.name);const item=merged.get(key);if(item){if(!item.profileIds.includes(p.id))item.profileIds.push(p.id);}else merged.set(key,{name:p.name,folderIds:[],profileIds:[p.id]});}
    const roster=[...merged.values()].sort((a,b)=>a.name.localeCompare(b.name));
    const entriesByMember=(entries||[]).map(x=>({memberId:String(x.training_file_id??""),training:text(x.training_name)})).filter(x=>x.memberId&&x.training);
    const profileByMember=(profileEntries||[]).map(x=>({memberId:String(x.member_id??""),training:text(x.training_name)})).filter(x=>x.memberId&&x.training);
@@ -36,7 +37,7 @@
    for(const e of entriesByMember)done.add("file:"+e.memberId+"|"+e.training);
    for(const e of profileByMember)done.add("profile:"+e.memberId+"|"+e.training);
    const rows=[["Training / Certificate",...roster.map(x=>x.name)]];
-   for(const cls of classes)rows.push([cls,...roster.map(m=>(m.folderId&&done.has("file:"+m.folderId+"|"+cls))||(m.profileId&&done.has("profile:"+m.profileId+"|"+cls))?"X":"")]);
+   for(const cls of classes)rows.push([cls,...roster.map(m=>m.folderIds.some(id=>done.has("file:"+id+"|"+cls))||m.profileIds.some(id=>done.has("profile:"+id+"|"+cls))?"X":"")]);
    if(!window.XLSX)throw new Error("Excel export library did not load. Refresh the page and try again.");
    const workbook=window.XLSX.utils.book_new();
    const worksheet=window.XLSX.utils.aoa_to_sheet(rows);
