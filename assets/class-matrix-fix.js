@@ -16,7 +16,7 @@
    const [{data:files,error:fe},{data:entries,error:ee},{data:profiles,error:pe},{data:profileEntries,error:pre}]=await Promise.all([
     db.from("training_files").select("id,full_name").order("full_name"),
     db.from("training_file_records").select("training_file_id,training_name"),
-    db.from("firefighter_profiles").select("id,full_name,role,active").eq("role","firefighter").eq("active",true),
+    db.from("firefighter_profiles").select("id,full_name,role,active").eq("role","firefighter"),
     db.from("training_records").select("member_id,training_name")
    ]);
    if(fe)throw fe;if(ee)throw ee;if(pe)throw pe;if(pre)throw pre;
