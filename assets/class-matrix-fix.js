@@ -13,15 +13,30 @@
    const c=window.FIRE_PORTAL_CONFIG;
    if(!window.supabase||!c?.url||!c?.anonKey)throw new Error("Supabase configuration is unavailable.");
    const db=window.supabase.createClient(c.url,c.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-   const [{data:files,error:fe},{data:entries,error:ee}]=await Promise.all([db.from("training_files").select("id,full_name").order("full_name"),db.from("training_file_records").select("training_file_id,training_name")]);
-   if(fe)throw fe;if(ee)throw ee;
-   const members=(files||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name).sort((a,b)=>a.name.localeCompare(b.name));
-   const classes=[...new Set((entries||[]).map(x=>text(x.training_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-   if(!members.length)throw new Error("No named firefighter training folders were returned.");
+   const [{data:files,error:fe},{data:entries,error:ee},{data:profiles,error:pe},{data:profileEntries,error:pre}]=await Promise.all([
+    db.from("training_files").select("id,full_name").order("full_name"),
+    db.from("training_file_records").select("training_file_id,training_name"),
+    db.from("firefighter_profiles").select("id,full_name,role,active").eq("role","firefighter").eq("active",true),
+    db.from("training_records").select("member_id,training_name")
+   ]);
+   if(fe)throw fe;if(ee)throw ee;if(pe)throw pe;if(pre)throw pre;
+   const members=(files||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name);
+   const profileMembers=(profiles||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name);
+   // Merge folder-based members and profile-based firefighters, including C. Ramey.
+   const merged=new Map();
+   for(const m of members)merged.set(m.name.toLowerCase(),{name:m.name,folderId:m.id,profileId:""});
+   for(const p of profileMembers){const key=p.name.toLowerCase();const item=merged.get(key);if(item)item.profileId=p.id;else merged.set(key,{name:p.name,folderId:"",profileId:p.id});}
+   const roster=[...merged.values()].sort((a,b)=>a.name.localeCompare(b.name));
+   const entriesByMember=(entries||[]).map(x=>({memberId:String(x.training_file_id??""),training:text(x.training_name)})).filter(x=>x.memberId&&x.training);
+   const profileByMember=(profileEntries||[]).map(x=>({memberId:String(x.member_id??""),training:text(x.training_name)})).filter(x=>x.memberId&&x.training);
+   const classes=[...new Set([...entriesByMember,...profileByMember].map(x=>x.training))].sort((a,b)=>a.localeCompare(b));
+   if(!roster.length)throw new Error("No named firefighter records were returned from Supabase.");
    if(!classes.length)throw new Error("No training records were returned.");
-   const done=new Set((entries||[]).map(x=>String(x.training_file_id??"")+"|"+text(x.training_name)));
-   const rows=[["Training / Certificate",...members.map(x=>x.name)]];
-   for(const cls of classes)rows.push([cls,...members.map(m=>done.has(m.id+"|"+cls)?"X":"")]);
+   const done=new Set();
+   for(const e of entriesByMember)done.add("file:"+e.memberId+"|"+e.training);
+   for(const e of profileByMember)done.add("profile:"+e.memberId+"|"+e.training);
+   const rows=[["Training / Certificate",...roster.map(x=>x.name)]];
+   for(const cls of classes)rows.push([cls,...roster.map(m=>(m.folderId&&done.has("file:"+m.folderId+"|"+cls))||(m.profileId&&done.has("profile:"+m.profileId+"|"+cls))?"X":"")]);
    const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
    if(ios){
     const w=window.open("","_blank");if(!w)throw new Error("Safari blocked the matrix window. Allow pop-ups for whtraining.tech.");
