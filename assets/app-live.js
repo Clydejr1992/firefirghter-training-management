@@ -61,46 +61,6 @@
 
   $("activity").innerHTML=audits.slice(-10).reverse().map(a=>'<p>'+esc(a.action)+' · '+esc(a.entity_type)+' · '+esc(a.created_at)+'</p>').join("")||"No activity yet.";
   $("report").textContent=records.length+" records · "+records.reduce((n,r)=>n+Number(r.hours||0),0).toFixed(1)+" total hours";$("audit").innerHTML=$("activity").innerHTML;
-  $("downloadClassMatrix").onclick=async()=>{
-    try{
-      const [{data:matrixMembersData,error:membersError},{data:matrixRecords,error:recordsError}]=await Promise.all([
-        db.from("training_files").select("id,full_name").order("full_name",{ascending:true}),
-        db.from("training_file_records").select("training_file_id,training_name")
-      ]);
-      if(membersError)throw membersError;if(recordsError)throw recordsError;
-      const asMemberName=value=>{
-        if(typeof value==="string"||typeof value==="number")return String(value).trim();
-        if(value&&typeof value==="object"){
-          for(const key of ["full_name","fullName","display_name","displayName","name","label","email","value","text"]){
-            const found=asMemberName(value[key]);if(found&&found!=="[object Object]")return found;
-          }
-        }
-        return "";
-      };
-      const matrixMembers=(matrixMembersData||[]).map(m=>({id:String(m.id??""),name:asMemberName(m.full_name)||asMemberName(m.display_name)||asMemberName(m.name)})).filter(m=>m.id&&m.name&&m.name!=="[object Object]").sort((a,b)=>a.name.localeCompare(b.name));
-      const classes=[...new Set((matrixRecords||[]).map(r=>typeof r.training_name==="string"?r.training_name.trim():"").filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-      if(!matrixMembers.length){alert("No named firefighter training files were found in Supabase.");return;}
-      if(!classes.length){alert("No saved training entries were found in firefighter training files.");return;}
-      const completed=new Set((matrixRecords||[]).map(r=>String(r.training_file_id)+"::"+String(r.training_name||"").trim()));
-      const rows=[["Training / Certificate",...matrixMembers.map(m=>m.name)]];
-      for(const cls of classes)rows.push([cls,...matrixMembers.map(member=>completed.has(member.id+"::"+cls)?"X":"")]);
-      const csv=rows.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\\r\\n");
-      const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
-      if(isIOS){
-        const escHtml=value=>String(value??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-        const tableRows=rows.map((row,index)=>"<tr>"+row.map(cell=>index===0?"<th>"+escHtml(cell)+"</th>":"<td>"+escHtml(cell)+"</td>").join("")+"</tr>").join("");
-        const report=window.open("","_blank");
-        if(!report){alert("Safari blocked the matrix window. Allow pop-ups for whtraining.tech and try again.");return;}
-        report.document.open();
-        report.document.write("<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Firefighter Class Matrix</title><style>body{font:14px -apple-system,BlinkMacSystemFont,sans-serif;margin:12px;color:#111}.wrap{overflow:auto}table{border-collapse:collapse;white-space:nowrap}th,td{border:1px solid #bbb;padding:7px;text-align:left}th{background:#eee;position:sticky;top:0}button{padding:10px 14px;margin-bottom:12px}</style></head><body><h2>Firefighter Class Matrix</h2><p>Use Print / Save PDF to keep a copy of this matrix.</p><button onclick=\"window.print()\">Print / Save PDF</button><div class=\"wrap\"><table>"+tableRows+"</table></div></body></html>");
-        report.document.close();return;
-      }
-      const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});
-      const url=URL.createObjectURL(blob),link=document.createElement("a");
-      link.href=url;link.download="firefighter-class-matrix.csv";link.style.display="none";document.body.appendChild(link);link.click();link.remove();
-      window.setTimeout(()=>URL.revokeObjectURL(url),60000);
-    }catch(err){console.error("Class Matrix export failed:",err);alert("Unable to create class matrix: "+(err?.message||String(err)));}
-  };
   $("downloadCsv").onclick=()=>{const rows=[["Member","Training","Date","Location","Instructor","Hours","Expiration"],...records.map(r=>[members.find(m=>m.id===r.member_id)?.full_name||"",r.training_name,r.training_date,r.location,r.instructor,r.hours,r.expiration_date||""])];const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="training-report.csv";a.click();};
  }
  async function memberCertificateForMember(path,print=false){
