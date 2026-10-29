@@ -37,15 +37,14 @@
    for(const e of profileByMember)done.add("profile:"+e.memberId+"|"+e.training);
    const rows=[["Training / Certificate",...roster.map(x=>x.name)]];
    for(const cls of classes)rows.push([cls,...roster.map(m=>(m.folderId&&done.has("file:"+m.folderId+"|"+cls))||(m.profileId&&done.has("profile:"+m.profileId+"|"+cls))?"X":"")]);
-   const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
-   if(ios){
-    const w=window.open("","_blank");if(!w)throw new Error("Safari blocked the matrix window. Allow pop-ups for whtraining.tech.");
-    const table=rows.map((row,i)=>"<tr>"+row.map(v=>i===0?"<th>"+esc(v)+"</th>":"<td>"+esc(v)+"</td>").join("")+"</tr>").join("");
-    w.document.open();w.document.write("<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Firefighter Class Matrix</title><style>body{font:14px -apple-system,sans-serif;margin:12px}.wrap{overflow:auto;max-height:85vh}table{border-collapse:collapse;white-space:nowrap}th,td{border:1px solid #bbb;padding:7px;text-align:left}th{background:#eee;position:sticky;top:0}button{padding:10px;margin-bottom:12px}</style></head><body><h2>Firefighter Class Matrix</h2><p>"+members.length+" firefighters; "+classes.length+" training types</p><button onclick=\"window.print()\">Print / Save PDF</button><div class=\"wrap\"><table>"+table+"</table></div></body></html>");w.document.close();
-   }else{
-    const csv=rows.map(row=>row.map(v=>"\""+String(v??"").replace(/"/g,"\"\"")+"\"").join(",")).join("\r\n");
-    const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="firefighter-class-matrix.csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
-   }
+   if(!window.XLSX)throw new Error("Excel export library did not load. Refresh the page and try again.");
+   const workbook=window.XLSX.utils.book_new();
+   const worksheet=window.XLSX.utils.aoa_to_sheet(rows);
+   worksheet["!cols"]=[{wch:30},...roster.map(m=>({wch:Math.max(14,Math.min(28,m.name.length+2))}))];
+   worksheet["!freeze"]={xSplit:1,ySplit:1,topLeftCell:"B2",activePane:"bottomRight",state:"frozen"};
+   worksheet["!autofilter"]={ref:window.XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:rows[0].length-1}})};
+   window.XLSX.utils.book_append_sheet(workbook,worksheet,"Class Matrix");
+   window.XLSX.writeFile(workbook,"firefighter-class-matrix.xlsx",{compression:true});
   }catch(e){console.error("Class Matrix:",e);alert("Class Matrix error: "+(e?.message||String(e)));}finally{if(button)button.disabled=false;}
  }
  function attach(){const b=$("downloadClassMatrix");if(!b)return false;if(b.dataset.matrixFix==="1")return true;b.dataset.matrixFix="1";b.onclick=run;return true;}
