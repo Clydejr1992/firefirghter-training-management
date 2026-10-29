@@ -23,7 +23,7 @@
    const members=(files||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name);
    const profileMembers=(profiles||[]).map(x=>({id:String(x.id??""),name:text(x.full_name)})).filter(x=>x.id&&x.name);
    // Merge folder-based members and profile-based firefighters, including C. Ramey.
-   const normalizeName=name=>String(name??"").normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+   const normalizeName=name=>String(name??"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
    const merged=new Map();
    for(const m of members){const key=normalizeName(m.name);const item=merged.get(key);if(item){if(!item.folderIds.includes(m.id))item.folderIds.push(m.id);}else merged.set(key,{name:m.name,folderIds:[m.id],profileIds:[]});}
    for(const p of profileMembers){const key=normalizeName(p.name);const item=merged.get(key);if(item){if(!item.profileIds.includes(p.id))item.profileIds.push(p.id);}else merged.set(key,{name:p.name,folderIds:[],profileIds:[p.id]});}
